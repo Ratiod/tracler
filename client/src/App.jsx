@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const api = {
@@ -94,16 +94,39 @@ const css = `
 const MAPS = ["Ascent","Bind","Haven","Pearl","Lotus","Sunset","Abyss","Split"];
 
 const AGENTS = [
-  { name:"Jett",    color:"#4fc3f7", bg:"#0b1e2b" },
-  { name:"Raze",    color:"#ffab40", bg:"#2b1a08" },
-  { name:"Sage",    color:"#69f0ae", bg:"#0a1e16" },
-  { name:"Sova",    color:"#b39ddb", bg:"#1a1428" },
-  { name:"Omen",    color:"#8892aa", bg:"#141820" },
-  { name:"Killjoy", color:"#d4ff1e", bg:"#1e2408" },
-  { name:"Cypher",  color:"#c8d0e0", bg:"#161c28" },
-  { name:"Neon",    color:"#4fc3f7", bg:"#0b1e2b" },
-  { name:"Fade",    color:"#d4b0ff", bg:"#1c0e2e" },
-  { name:"Gekko",   color:"#a3e84f", bg:"#182010" },
+  // Duelists
+  { name:"Jett",     color:"#4fc3f7", bg:"#0b1e2b", role:"Duelist" },
+  { name:"Raze",     color:"#ffab40", bg:"#2b1a08", role:"Duelist" },
+  { name:"Neon",     color:"#4fc3f7", bg:"#0b1e2b", role:"Duelist" },
+  { name:"Phoenix",  color:"#ff7043", bg:"#2b1005", role:"Duelist" },
+  { name:"Reyna",    color:"#c44cf5", bg:"#1e0a28", role:"Duelist" },
+  { name:"Yoru",     color:"#4a6bff", bg:"#080e28", role:"Duelist" },
+  { name:"Iso",      color:"#6fc0e8", bg:"#0a1a28", role:"Duelist" },
+  { name:"Waylay",   color:"#ffcc44", bg:"#2a1e00", role:"Duelist" },
+  // Initiators
+  { name:"Sova",     color:"#b39ddb", bg:"#1a1428", role:"Initiator" },
+  { name:"Fade",     color:"#d4b0ff", bg:"#1c0e2e", role:"Initiator" },
+  { name:"Gekko",    color:"#a3e84f", bg:"#182010", role:"Initiator" },
+  { name:"Breach",   color:"#ff8a65", bg:"#2b1008", role:"Initiator" },
+  { name:"KAY/O",    color:"#80cbc4", bg:"#0a1e1c", role:"Initiator" },
+  { name:"Skye",     color:"#69c47a", bg:"#0a1e10", role:"Initiator" },
+
+  // Controllers
+  { name:"Omen",     color:"#8892aa", bg:"#141820", role:"Controller" },
+  { name:"Brimstone",color:"#ff8a50", bg:"#2a1008", role:"Controller" },
+  { name:"Viper",    color:"#69f0ae", bg:"#0a1e12", role:"Controller" },
+  { name:"Astra",    color:"#c39af5", bg:"#1a0e2e", role:"Controller" },
+  { name:"Harbor",   color:"#4fc3f7", bg:"#0b1e2b", role:"Controller" },
+  { name:"Clove",    color:"#e8b4d4", bg:"#28101e", role:"Controller" },
+  // Sentinels
+  { name:"Killjoy",  color:"#d4ff1e", bg:"#1e2408", role:"Sentinel" },
+  { name:"Cypher",   color:"#c8d0e0", bg:"#161c28", role:"Sentinel" },
+  { name:"Sage",     color:"#69f0ae", bg:"#0a1e16", role:"Sentinel" },
+  { name:"Chamber",  color:"#d4aa70", bg:"#281e08", role:"Sentinel" },
+  { name:"Deadlock", color:"#9eb8d4", bg:"#0e1820", role:"Sentinel" },
+  { name:"Vyse",     color:"#b05090", bg:"#1e0818", role:"Sentinel" },
+  { name:"Tejo",     color:"#a8c070", bg:"#161e08", role:"Sentinel" },
+  { name:"Veto",     color:"#e05050", bg:"#2a0a0a", role:"Sentinel" },
 ];
 
 const PLAYERS_DEFAULT = [];
@@ -182,7 +205,7 @@ const NAV = [
 ════════════════════════════════════════ */
 export default function BzTracker() {
   const [page, setPage]         = useState("dashboard");
-  const [stratTab, setStratTab] = useState("raw");
+  const [stratTab, setStratTab] = useState("playbooks");
   const [players, setPlayers]   = useState(PLAYERS_DEFAULT);
 
   useEffect(()=>{ api.get("/api/players").then(d=>{ if(Array.isArray(d)) setPlayers(d); }).catch(()=>{}); }, []);
@@ -557,24 +580,20 @@ function ScrimLog({ setPage }) {
 ════════════════════════════════════════ */
 function Strategy({ tab, setTab }) {
   const TABS = [
-    { key:"raw",          label:"Raw Database" },
     { key:"playbooks",    label:"Playbooks" },
     { key:"gameplans",    label:"Game Plans" },
     { key:"compositions", label:"Compositions" },
-    { key:"lineups",      label:"Lineups" },
   ];
   return (
     <div style={{ padding:"28px 32px" }}>
       <div className="bc" style={{ fontSize:38, fontWeight:900, letterSpacing:"0.04em", marginBottom:4 }}>STRATEGY</div>
       <div style={{ color:"var(--t2)", fontSize:13, marginBottom:20 }}>Tactical hub — strats, playbooks, and match prep</div>
-      <div className="tab-bar" style={{ maxWidth:580, marginBottom:24 }}>
+      <div className="tab-bar" style={{ maxWidth:380, marginBottom:24 }}>
         {TABS.map(t=><button key={t.key} className={`tab${tab===t.key?" on":""}`} onClick={()=>setTab(t.key)}>{t.label}</button>)}
       </div>
-      {tab==="raw"          && <RawDB/>}
       {tab==="playbooks"    && <Playbooks/>}
       {tab==="gameplans"    && <GamePlans/>}
       {tab==="compositions" && <Compositions/>}
-      {tab==="lineups"      && <Lineups/>}
     </div>
   );
 }
@@ -655,185 +674,333 @@ function RawDB() {
 }
 
 function Playbooks() {
-  const [pbs, setPbs] = useState([]);
-  const [sel, setSel] = useState(null);
-  if (pbs.length === 0 || sel === null) {
-    return (
-      <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
-        <div>
-          <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {pbs.map((p,i)=>(
-              <div key={i} onClick={()=>setSel(i)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel===i?"var(--s3)":"var(--s1)", border:`1px solid ${sel===i?"var(--b3)":"var(--b1)"}` }}>
-                <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{p.name}</div>
-                <div style={{ display:"flex", gap:4 }}>{p.comp.map((a,j)=><AgentBadge key={j} name={a} size={20}/>)}</div>
-              </div>
-            ))}
-            <button className="btn btn-sub" style={{ marginTop:4 }} onClick={()=>{ const nb={name:`Playbook ${pbs.length+1}`,map:"Ascent",comp:[]}; setPbs(prev=>[...prev,nb]); setSel(pbs.length); }}>+ New Playbook</button>
-          </div>
-        </div>
-        <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
-          <div style={{ textAlign:"center", color:"var(--t3)" }}>
-            <div style={{ fontSize:26, marginBottom:8 }}>⬡</div>
-            <div style={{ fontSize:13 }}>{pbs.length===0?"No playbooks yet — create one to get started":"Select a playbook to view"}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const [pbs, setPbs]   = useState([]);
+  const [sel, setSel]   = useState(null);
+  const [modal, setModal] = useState(false);
+  const [form, setForm]  = useState({ name:"", map:"Ascent", desc:"" });
+  const fileRef = React.useRef();
+
+  const handleUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file || file.type !== "application/pdf") return;
+    const url = URL.createObjectURL(file);
+    const nb = { id: Date.now(), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: url, fileName: file.name };
+    setPbs(prev => [...prev, nb]);
+    setSel(nb);
+    setModal(false);
+    setForm({ name:"", map:"Ascent", desc:"" });
+    e.target.value = "";
+  };
+
+  const openModal = () => { setModal(true); };
+
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
-      <div>
+    <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
         <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {pbs.map((p,i)=>(
-            <div key={i} onClick={()=>setSel(i)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel===i?"var(--s3)":"var(--s1)", border:`1px solid ${sel===i?"var(--b3)":"var(--b1)"}` }}>
-              <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{p.name}</div>
-              <div style={{ display:"flex", gap:4 }}>{p.comp.map((a,j)=><AgentBadge key={j} name={a} size={20}/>)}</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
+          {pbs.map((p)=>(
+            <div key={p.id} onClick={()=>setSel(p)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===p.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===p.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+              <div style={{ fontWeight:600, marginBottom:4, fontSize:13 }}>{p.name}</div>
+              <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:p.desc?4:0 }}>
+                <span className="chip chip-blue">{p.map}</span>
+                <span style={{ fontSize:10, color:"var(--t3)" }}>PDF</span>
+              </div>
+              {p.desc && <div style={{ fontSize:11, color:"var(--t2)", marginTop:3, lineHeight:1.4 }}>{p.desc}</div>}
             </div>
           ))}
-          <button className="btn btn-sub" style={{ marginTop:4 }} onClick={()=>{ const nb={name:`Playbook ${pbs.length+1}`,map:"Ascent",comp:[]}; setPbs(prev=>[...prev,nb]); setSel(pbs.length); }}>+ New Playbook</button>
         </div>
+        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={openModal}>+ Upload Playbook PDF</button>
+        <input ref={fileRef} type="file" accept="application/pdf" style={{ display:"none" }} onChange={handleUpload}/>
       </div>
-      <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
-        <div style={{ textAlign:"center", color:"var(--t3)" }}>
-          <div style={{ fontSize:26, marginBottom:8 }}>⬡</div>
-          <div style={{ fontSize:13 }}>{pbs.length===0?"No playbooks yet — create one to get started":"Select a playbook to view"}</div>
+
+      {sel ? (
+        <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.name}</div>
+              <div style={{ display:"flex", gap:6, marginTop:4 }}>
+                <span className="chip chip-blue">{sel.map}</span>
+                {sel.desc && <span style={{ fontSize:12, color:"var(--t2)" }}>{sel.desc}</span>}
+              </div>
+            </div>
+            <button className="btn btn-red" onClick={()=>{ setPbs(p=>p.filter(x=>x.id!==sel.id)); setSel(null); }}>✕ Remove</button>
+          </div>
+          <iframe src={sel.pdfUrl} style={{ flex:1, border:"none", width:"100%", minHeight:500 }} title={sel.name}/>
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
+          <div style={{ textAlign:"center", color:"var(--t3)" }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>📋</div>
+            <div className="bc" style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>{pbs.length===0?"No Playbooks Yet":"Select a Playbook"}</div>
+            <div style={{ fontSize:13 }}>{pbs.length===0?"Upload a PDF playbook to get started":"Click a playbook on the left to view it"}</div>
+          </div>
+        </div>
+      )}
+
+      {modal && (
+        <Modal onClose={()=>setModal(false)} title="Upload Playbook PDF">
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Playbook Name</div><input type="text" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Ascent Attack Executes"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Map</div><select value={form.map} onChange={e=>setForm(f=>({...f,map:e.target.value}))}>{MAPS.map(m=><option key={m}>{m}</option>)}</select></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Description (optional)</div><input type="text" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Short description of this playbook"/></div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={()=>fileRef.current?.click()}>Choose PDF File</button>
+              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+            </div>
+            <div style={{ fontSize:11, color:"var(--t3)", textAlign:"center" }}>Only PDF files are supported</div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
 function GamePlans() {
-  const [docs, setDocs] = useState([]);
-  const [sel, setSel]   = useState(null);
+  const [docs, setDocs]   = useState([]);
+  const [sel, setSel]     = useState(null);
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm]   = useState({ title:"", opp:"", maps:[], side:"atk", body:"" });
+  const [editBody, setEditBody] = useState("");
+
+  const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
+
+  const create = () => {
+    if(!form.title.trim()) return;
+    const d = { id:Date.now(), ...form, date: new Date().toLocaleDateString() };
+    setDocs(p=>[...p, d]);
+    setSel(d);
+    setModal(false);
+    setForm({ title:"", opp:"", maps:[], side:"atk", body:"" });
+  };
+
+  const saveEdit = () => {
+    const updated = { ...sel, body: editBody };
+    setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
+    setSel(updated);
+    setEditing(false);
+  };
+
+  const deleteDoc = (id) => { setDocs(p=>p.filter(d=>d.id!==id)); if(sel?.id===id) setSel(null); };
+
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
-      <div>
-        <button className="btn btn-acc" style={{ width:"100%", justifyContent:"center", marginBottom:10 }}>+ New Game Plan</button>
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+    <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+        <div className="label-sm" style={{ marginBottom:8 }}>Game Plans</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
           {docs.map(d=>(
-            <div key={d.id} onClick={()=>setSel(d)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}` }}>
-              <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{d.title}</div>
-              <div style={{ display:"flex", gap:4 }}>{d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}</div>
-              <div style={{ fontSize:11, color:"var(--t3)", marginTop:4 }}>{d.date}</div>
+            <div key={d.id} onClick={()=>{ setSel(d); setEditing(false); }} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{d.title}</div>
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                {d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
+                {d.opp && <span className="chip chip-purple">vs {d.opp}</span>}
+              </div>
+              <div style={{ fontSize:11, color:"var(--t3)", marginTop:3 }}>{d.date}</div>
             </div>
           ))}
         </div>
+        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={()=>setModal(true)}>+ New Game Plan</button>
       </div>
+
       {sel ? (
-        <div className="card">
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+        <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div className="bc" style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>{sel.title}</div>
-              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+              <div className="bc" style={{ fontSize:22, fontWeight:700 }}>{sel.title}</div>
+              <div style={{ display:"flex", gap:6, marginTop:4, alignItems:"center" }}>
                 {sel.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
-                <span style={{ color:"var(--t3)", fontSize:12 }}>vs {sel.opp} · {sel.date}</span>
+                <span className={`chip ${sel.side==="atk"?"chip-acc":"chip-blue"}`}>{sel.side==="atk"?"ATTACK":"DEFENSE"}</span>
+                {sel.opp && <span style={{ color:"var(--t3)", fontSize:12 }}>vs {sel.opp}</span>}
+                <span style={{ color:"var(--t3)", fontSize:11 }}>· {sel.date}</span>
               </div>
             </div>
-            <button className="btn btn-sub" style={{ fontSize:12 }}>✎ Edit</button>
+            <div style={{ display:"flex", gap:8 }}>
+              {editing ? (
+                <>
+                  <button className="btn btn-acc" style={{ fontSize:12 }} onClick={saveEdit}>✓ Save</button>
+                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={()=>setEditing(false)}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-sub" style={{ fontSize:12 }} onClick={()=>{ setEditBody(sel.body); setEditing(true); }}>✎ Edit</button>
+                  <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>deleteDoc(sel.id)}>✕</button>
+                </>
+              )}
+            </div>
           </div>
-          <Divider/>
-          <p style={{ color:"var(--t2)", lineHeight:1.8, fontSize:13 }}>{sel.body}</p>
-          <p style={{ color:"var(--t3)", fontStyle:"italic", marginTop:12, fontSize:12 }}>Add notes, embed videos, tag strategies, @mention players…</p>
+          <div style={{ flex:1, padding:"16px 18px", overflowY:"auto" }}>
+            {editing ? (
+              <textarea value={editBody} onChange={e=>setEditBody(e.target.value)}
+                style={{ width:"100%", height:"100%", minHeight:400, background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", padding:"12px", fontSize:13, lineHeight:1.8, resize:"vertical" }}
+                placeholder="Write your game plan notes here — opponent tendencies, map strategies, economic patterns, player assignments..."/>
+            ) : (
+              sel.body ? (
+                <p style={{ color:"var(--t2)", lineHeight:1.9, fontSize:13, whiteSpace:"pre-wrap" }}>{sel.body}</p>
+              ) : (
+                <div style={{ textAlign:"center", marginTop:40, color:"var(--t3)" }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>📝</div>
+                  <div>No notes yet — click Edit to add your game plan</div>
+                </div>
+              )
+            )}
+          </div>
         </div>
       ) : (
         <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
           <div style={{ textAlign:"center", color:"var(--t3)" }}>
-            <div style={{ fontSize:26, marginBottom:8 }}>☰</div>
-            <div style={{ fontSize:13 }}>{docs.length===0?"No game plans yet — create one to get started":"Select a game plan to view"}</div>
+            <div style={{ fontSize:32, marginBottom:12 }}>🗂</div>
+            <div className="bc" style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>{docs.length===0?"No Game Plans Yet":"Select a Game Plan"}</div>
+            <div style={{ fontSize:13 }}>{docs.length===0?"Create your first game plan to get started":"Click a plan on the left to view it"}</div>
           </div>
         </div>
+      )}
+
+      {modal && (
+        <Modal onClose={()=>setModal(false)} title="New Game Plan">
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div><input type="text" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. vs LOUD — Ascent Game Plan"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Opponent (optional)</div><input type="text" value={form.opp} onChange={e=>setForm(f=>({...f,opp:e.target.value}))} placeholder="Team name"/></div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:8 }}>Maps</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {MAPS.map(m=>(
+                  <button key={m} onClick={()=>toggleMap(m)} style={{ padding:"4px 10px", borderRadius:"var(--r)", fontSize:12, fontWeight:500, background:form.maps.includes(m)?"rgba(79,195,247,0.15)":"var(--s3)", border:`1px solid ${form.maps.includes(m)?"var(--blue)":"var(--b2)"}`, color:form.maps.includes(m)?"var(--blue)":"var(--t2)", cursor:"pointer", transition:"all 0.15s" }}>{m}</button>
+                ))}
+              </div>
+            </div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Side Focus</div>
+              <select value={form.side} onChange={e=>setForm(f=>({...f,side:e.target.value}))}>
+                <option value="atk">Attack</option><option value="def">Defense</option><option value="both">Both</option>
+              </select>
+            </div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Initial Notes (optional)</div><textarea rows={4} style={{ resize:"vertical" }} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="Opponent tendencies, key players, map strategies..."/></div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create}>Create Game Plan</button>
+              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
 }
 
 function Compositions() {
-  const [comps, setComps] = useState([]);
+  const [comps, setComps]   = useState([]);
+  const [modal, setModal]   = useState(false);
+  const [selComp, setSelComp] = useState(null);
+  const [form, setForm]     = useState({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
+  const ROLES = ["Duelist","Initiator","Controller","Sentinel"];
+
+  const toggleAgent = ag => {
+    setForm(f=>{
+      if(f.agents.includes(ag.name)) return { ...f, agents:f.agents.filter(a=>a!==ag.name) };
+      if(f.agents.length>=5) return f;
+      return { ...f, agents:[...f.agents, ag.name] };
+    });
+  };
+
+  const create = () => {
+    if(!form.agents.length) return;
+    const c = { id:Date.now(), map:form.map, name:form.name||`${form.map} Comp`, agents:form.agents, players:form.players };
+    setComps(p=>[...p,c]);
+    setModal(false);
+    setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
+  };
+
+  const del = id => { setComps(p=>p.filter(c=>c.id!==id)); if(selComp?.id===id) setSelComp(null); };
+
   return (
     <div>
-      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>setComps(p=>[...p,{map:"Ascent",agents:[],players:[]}])}>+ New Composition</button>
+      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>{ setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] }); setModal(true); }}>+ New Composition</button>
       {comps.length===0 ? (
         <div className="card" style={{ textAlign:"center", padding:"48px 20px" }}>
-          <div style={{ fontSize:26, marginBottom:8, color:"var(--t3)" }}>⬡</div>
+          <div style={{ fontSize:32, marginBottom:12, color:"var(--t3)" }}>⬡</div>
           <div className="bc" style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>No Compositions Yet</div>
           <div style={{ color:"var(--t2)", fontSize:13 }}>Create a composition to define your agent picks per map</div>
         </div>
       ) : (
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
-        {comps.map((c,i)=>(
-          <div key={i} className="card">
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
-              <span className="bc" style={{ fontSize:20, fontWeight:700 }}>{c.map}</span>
-              <button className="btn btn-ghost" style={{ fontSize:11 }}>✎ Edit</button>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:14 }}>
+          {comps.map(c=>(
+            <div key={c.id} className="card" style={{ position:"relative" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14, alignItems:"flex-start" }}>
+                <div>
+                  <span className="bc" style={{ fontSize:20, fontWeight:700, display:"block" }}>{c.name}</span>
+                  <span className="chip chip-blue" style={{ marginTop:4 }}>{c.map}</span>
+                </div>
+                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>del(c.id)}>✕</button>
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {c.agents.map((ag,j)=>{
+                  const agData = AGENTS.find(a=>a.name===ag);
+                  return (
+                    <div key={j} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <div style={{ width:44, height:44, borderRadius:"var(--r)", background:agData?.bg||"#141820", border:`1px solid ${agData?.color||"#333"}40`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:agData?.color||"#888" }}>{ag.slice(0,3).toUpperCase()}</span>
+                      </div>
+                      <span style={{ fontSize:10, color:"var(--t2)", fontWeight:500 }}>{ag}</span>
+                      {c.players[j] && <span style={{ fontSize:10, color:"var(--t3)" }}>{c.players[j]}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid var(--b1)", display:"flex", gap:6, flexWrap:"wrap" }}>
+                {c.agents.map(ag=>{
+                  const agData = AGENTS.find(a=>a.name===ag);
+                  return agData ? <span key={ag} className="chip" style={{ background:`${agData.color}18`, color:agData.color, border:`1px solid ${agData.color}30` }}>{agData.role}</span> : null;
+                }).filter((v,i,a)=>a.findIndex(x=>x?.key===v?.key)===i)}
+              </div>
             </div>
-            <div style={{ display:"flex", gap:10 }}>
-              {c.agents.map((ag,j)=>(
-                <div key={j} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                  <AgentBadge name={ag} size={36}/>
-                  <span style={{ fontSize:10, color:"var(--t2)" }}>{ag}</span>
-                  <span style={{ fontSize:10, color:"var(--t3)" }}>{c.players[j]}</span>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <Modal onClose={()=>setModal(false)} title="New Composition">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div><div className="label-sm" style={{ marginBottom:6 }}>Map</div><select value={form.map} onChange={e=>setForm(f=>({...f,map:e.target.value}))}>{MAPS.map(m=><option key={m}>{m}</option>)}</select></div>
+              <div><div className="label-sm" style={{ marginBottom:6 }}>Comp Name (optional)</div><input type="text" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Main Comp"/></div>
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:8 }}>Pick Agents ({form.agents.length}/5)</div>
+              {ROLES.map(role=>(
+                <div key={role} style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"var(--t3)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>{role}</div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {AGENTS.filter(a=>a.role===role).map(ag=>{
+                      const picked = form.agents.includes(ag.name);
+                      return (
+                        <button key={ag.name} onClick={()=>toggleAgent(ag)} style={{ padding:"5px 10px", borderRadius:"var(--r)", fontSize:12, fontWeight:600, background:picked?`${ag.color}22`:"var(--s3)", border:`1px solid ${picked?ag.color:"var(--b2)"}`, color:picked?ag.color:"var(--t2)", cursor:"pointer", transition:"all 0.15s" }}>{ag.name}</button>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
+            {form.agents.length>0 && (
+              <div>
+                <div className="label-sm" style={{ marginBottom:8 }}>Assign Players (optional)</div>
+                {form.agents.map((ag,i)=>(
+                  <div key={ag} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+                    <span style={{ width:80, fontSize:12, color:"var(--t2)" }}>{ag}</span>
+                    <input type="text" value={form.players[i]||""} onChange={e=>setForm(f=>{ const p=[...f.players]; p[i]=e.target.value; return {...f,players:p}; })} placeholder="Player IGN" style={{ flex:1 }}/>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create} disabled={form.agents.length===0}>Create Composition</button>
+              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+            </div>
           </div>
-        ))}
-      </div>
+        </Modal>
       )}
     </div>
   );
 }
 
-function Lineups() {
-  const [lus, setLus] = useState([]);
-  return (
-    <div>
-      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>setLus(p=>[...p,{agent:"Sova",map:"Ascent",name:"New Lineup",from:"",land:""}])}>+ Add Lineup</button>
-      {lus.length===0 ? (
-        <div className="card" style={{ textAlign:"center", padding:"48px 20px" }}>
-          <div style={{ fontSize:26, marginBottom:8, color:"var(--t3)" }}>◎</div>
-          <div className="bc" style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>No Lineups Yet</div>
-          <div style={{ color:"var(--t2)", fontSize:13 }}>Add lineups to track ability throws and landing spots</div>
-        </div>
-      ) : (
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))", gap:14 }}>
-        {lus.map((l,i)=>{
-          const ag = AGENTS.find(a=>a.name===l.agent);
-          return (
-            <div key={i} className="card" style={{ cursor:"pointer" }}>
-              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
-                <AgentBadge name={l.agent} size={36}/>
-                <div>
-                  <div style={{ fontWeight:600, marginBottom:5 }}>{l.name}</div>
-                  <div style={{ display:"flex", gap:5 }}>
-                    <span className="chip chip-blue">{l.map}</span>
-                    <span className="chip chip-purple">{l.agent}</span>
-                  </div>
-                </div>
-              </div>
-              <div style={{ height:96, background:"var(--s2)", borderRadius:"var(--r)", border:"1px solid var(--b2)", position:"relative", overflow:"hidden", marginBottom:10 }}>
-                <div style={{ position:"absolute", inset:0, opacity:0.06, background:`radial-gradient(circle at 40% 30%, ${ag?.color}, transparent 60%)` }}/>
-                <div style={{ position:"absolute", width:9, height:9, background:ag?.color||"#fff", borderRadius:"50%", top:"30%", left:"40%", boxShadow:`0 0 8px ${ag?.color}` }}/>
-                <div style={{ position:"absolute", width:8, height:8, background:"var(--acc)", borderRadius:"50%", top:"68%", left:"72%", boxShadow:"0 0 8px var(--acc)" }}/>
-                <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%" }}>
-                  <line x1="43%" y1="34%" x2="74%" y2="72%" stroke={ag?.color||"#fff"} strokeWidth="1" strokeDasharray="4,3" opacity="0.35"/>
-                </svg>
-                <div style={{ position:"absolute", bottom:6, right:8, fontSize:9, color:"var(--t3)", fontWeight:600, letterSpacing:"0.06em" }}>MAP PREVIEW</div>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <div style={{ fontSize:11 }}><div style={{ color:"var(--t2)", fontWeight:600, marginBottom:2 }}>Throw</div><div style={{ color:"var(--t3)" }}>{l.from||"—"}</div></div>
-                <div style={{ fontSize:11 }}><div style={{ color:"var(--t2)", fontWeight:600, marginBottom:2 }}>Landing</div><div style={{ color:"var(--t3)" }}>{l.land||"—"}</div></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      )}
-    </div>
-  );
-}
 
 /* ════════════════════════════════════════
    DATA ANALYSIS
@@ -910,37 +1077,236 @@ function DataAnalysis({ players=[] }) {
 }
 
 /* ════════════════════════════════════════
+   VOD REVIEW — helpers
+════════════════════════════════════════ */
+function getEmbedUrl(url) {
+  if (!url) return null;
+  // Already an embed URL
+  if (url.includes("youtube.com/embed/")) return url;
+  // youtu.be short link
+  const short = url.match(/youtu\.be\/([^?&]+)/);
+  if (short) return `https://www.youtube.com/embed/${short[1]}?rel=0&modestbranding=1`;
+  // Standard watch URL
+  const watch = url.match(/youtube\.com\/watch\?v=([^&]+)/);
+  if (watch) return `https://www.youtube.com/embed/${watch[1]}?rel=0&modestbranding=1`;
+  // Shorts
+  const shorts = url.match(/youtube\.com\/shorts\/([^?&]+)/);
+  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?rel=0&modestbranding=1`;
+  return null;
+}
+
+function fmt(secs) {
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = Math.floor(secs%60);
+  if (h > 0) return `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+
+/* ─ Drawing canvas ─ */
+const DRAW_COLORS = ["#d4ff1e","#ff5252","#4fc3f7","#69f0ae","#ffab40","#b39ddb","#ffffff"];
+const DRAW_SIZES  = [2,5,10,18];
+const DRAW_TOOLS  = ["pen","line","rect","circle","arrow","eraser"];
+
+function DrawCanvas({ strokes, onStrokes }) {
+  const [tool,setTool]   = useState("pen");
+  const [color,setColor] = useState(DRAW_COLORS[0]);
+  const [size,setSize]   = useState(DRAW_SIZES[1]);
+  const cvs  = useState(null);
+  const canv = { current: null };
+  const canvRef = { current: null };
+
+  // use a real ref
+  const realRef = React.useRef(null);
+  const drawing = React.useRef(false);
+  const cur     = React.useRef(null);
+
+  const getPos = (e) => {
+    const rect = realRef.current.getBoundingClientRect();
+    const cx = (e.touches?e.touches[0].clientX:e.clientX);
+    const cy = (e.touches?e.touches[0].clientY:e.clientY);
+    return { x:(cx-rect.left)*(realRef.current.width/rect.width), y:(cy-rect.top)*(realRef.current.height/rect.height) };
+  };
+
+  const paint = (ctx, s) => {
+    ctx.save();
+    ctx.strokeStyle = s.tool==="eraser" ? "#000" : s.color;
+    ctx.lineWidth   = s.size;
+    ctx.lineCap = ctx.lineJoin = "round";
+    ctx.globalCompositeOperation = s.tool==="eraser" ? "destination-out" : "source-over";
+    if (s.tool==="pen"||s.tool==="eraser") {
+      ctx.beginPath(); s.pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();
+    } else if (s.tool==="line") {
+      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+    } else if (s.tool==="rect") {
+      ctx.beginPath(); ctx.strokeRect(s.x1,s.y1,s.x2-s.x1,s.y2-s.y1);
+    } else if (s.tool==="circle") {
+      const rx=Math.abs(s.x2-s.x1)/2, ry=Math.abs(s.y2-s.y1)/2;
+      ctx.beginPath(); ctx.ellipse((s.x1+s.x2)/2,(s.y1+s.y2)/2,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    } else if (s.tool==="arrow") {
+      const dx=s.x2-s.x1, dy=s.y2-s.y1, ang=Math.atan2(dy,dx), hl=Math.min(20,Math.sqrt(dx*dx+dy*dy)*0.3);
+      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2);
+      ctx.lineTo(s.x2-hl*Math.cos(ang-0.4),s.y2-hl*Math.sin(ang-0.4));
+      ctx.moveTo(s.x2,s.y2); ctx.lineTo(s.x2-hl*Math.cos(ang+0.4),s.y2-hl*Math.sin(ang+0.4));
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const redraw = (ss) => {
+    const c = realRef.current; if(!c) return;
+    const ctx = c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height);
+    ss.forEach(s=>paint(ctx,s));
+  };
+
+  React.useEffect(()=>{ redraw(strokes); }, [strokes]);
+
+  const onDown = (e) => {
+    e.preventDefault(); drawing.current=true;
+    const p=getPos(e);
+    cur.current = (tool==="pen"||tool==="eraser") ? {tool,color,size,pts:[p]} : {tool,color,size,x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+  };
+  const onMove = (e) => {
+    if(!drawing.current||!cur.current) return; e.preventDefault();
+    const p=getPos(e);
+    if(tool==="pen"||tool==="eraser") { cur.current.pts.push(p); }
+    else { cur.current.x2=p.x; cur.current.y2=p.y; }
+    redraw(strokes);
+    paint(realRef.current.getContext("2d"), cur.current);
+  };
+  const onUp = () => {
+    if(!drawing.current||!cur.current) return;
+    drawing.current=false;
+    onStrokes([...strokes, cur.current]);
+    cur.current=null;
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", gap:0 }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"var(--s2)", borderBottom:"1px solid var(--b1)", flexWrap:"wrap" }}>
+        {/* Tools */}
+        <div style={{ display:"flex", gap:4 }}>
+          {DRAW_TOOLS.map(t=>(
+            <button key={t} onClick={()=>setTool(t)} title={t} style={{ width:30, height:30, borderRadius:"var(--r)", border:`1px solid ${tool===t?"var(--acc)":"var(--b2)"}`,
+              background:tool===t?"rgba(212,255,30,0.12)":"var(--s3)", color:tool===t?"var(--acc)":"var(--t2)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+              {t==="pen"?"✏":t==="line"?"╱":t==="rect"?"▭":t==="circle"?"◯":t==="arrow"?"→":"⌫"}
+            </button>
+          ))}
+        </div>
+        <div style={{ width:1, height:20, background:"var(--b2)" }}/>
+        {/* Colors */}
+        <div style={{ display:"flex", gap:4 }}>
+          {DRAW_COLORS.map(c=>(
+            <button key={c} onClick={()=>setColor(c)} style={{ width:20, height:20, borderRadius:4, background:c,
+              border:`2px solid ${color===c?"#fff":"transparent"}`, cursor:"pointer" }}/>
+          ))}
+        </div>
+        <div style={{ width:1, height:20, background:"var(--b2)" }}/>
+        {/* Sizes */}
+        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+          {DRAW_SIZES.map(s=>(
+            <button key={s} onClick={()=>setSize(s)} style={{ width:s===2?16:s===5?20:s===10?24:28, height:s===2?16:s===5?20:s===10?24:28,
+              borderRadius:"50%", background:size===s?"var(--acc)":"var(--s3)", border:`1px solid ${size===s?"var(--acc)":"var(--b2)"}`, cursor:"pointer" }}/>
+          ))}
+        </div>
+        <div style={{ flex:1 }}/>
+        <button onClick={()=>onStrokes([])} style={{ background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"4px 12px", fontSize:11, cursor:"pointer" }}>
+          Clear
+        </button>
+        {strokes.length>0 && (
+          <button onClick={()=>onStrokes(strokes.slice(0,-1))} style={{ background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"4px 12px", fontSize:11, cursor:"pointer" }}>
+            Undo
+          </button>
+        )}
+      </div>
+      {/* Canvas */}
+      <div style={{ flex:1, position:"relative", background:"#0a0c10", overflow:"hidden" }}>
+        <canvas ref={realRef} width={1280} height={720}
+          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+          style={{ width:"100%", height:"100%", cursor:tool==="eraser"?"cell":"crosshair", touchAction:"none", display:"block" }}
+        />
+        {strokes.length===0 && (
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
+            <div style={{ color:"var(--t3)", fontSize:12, textAlign:"center" }}>
+              <div style={{ fontSize:28, marginBottom:6 }}>✏</div>
+              <div>Draw annotations on this frame</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
    VOD REVIEW
 ════════════════════════════════════════ */
 function VodReview() {
-  const [vods, setVods]           = useState([]);
-  const [sel, setSel]             = useState(null);
-  const [reply, setReply]         = useState({});
-  const [showNew, setShowNew]     = useState(false);
+  const [vods, setVods]                 = useState([]);
+  const [selId, setSelId]               = useState(null);
+  const [showNew, setShowNew]           = useState(false);
   const [activeFolder, setActiveFolder] = useState("All");
-  const [newForm, setNewForm]     = useState({ title:"", folder:"Scrims", url:"" });
+  const [newForm, setNewForm]           = useState({ title:"", folder:"Scrims", url:"" });
+  const [selTsId, setSelTsId]           = useState(null);
+  const [activeTab, setActiveTab]       = useState("notes"); // "notes" | "draw"
+  const [showAddTs, setShowAddTs]       = useState(false);
+  const [tsForm, setTsForm]             = useState({ time:"", label:"", cat:"Rotation" });
+  const [urlInput, setUrlInput]         = useState("");
 
-  const FOLDERS = ["All","Scrims","Opponent Analysis","Officials"];
-  const TS_COLORS = { "Rotation":"#4fc3f7", "Util Usage":"#b39ddb", "Mistake":"#ff5252", "Win Cond":"#69f0ae" };
+  const FOLDERS   = ["All","Scrims","Opponent Analysis","Officials"];
+  const TS_COLORS = { "Rotation":"#4fc3f7","Util Usage":"#b39ddb","Mistake":"#ff5252","Win Cond":"#69f0ae","General":"#ffab40" };
 
   const filteredVods = activeFolder==="All" ? vods : vods.filter(v=>v.folder===activeFolder);
+  const sel     = vods.find(v=>v.id===selId) || null;
+  const selTs   = sel?.ts.find(t=>t.id===selTsId) || null;
+
+  const mutateVod = (id, fn) => setVods(vs=>vs.map(v=>v.id===id?fn(v):v));
+  const mutateTs  = (tsId, fn) => {
+    if(!sel) return;
+    mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) }));
+  };
 
   const addVod = () => {
     if(!newForm.title.trim()) return;
-    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url, ts:[] };
-    setVods(p=>[...p,v]);
-    setSel(v);
-    setShowNew(false);
-    setNewForm({ title:"", folder:"Scrims", url:"" });
+    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[] };
+    setVods(p=>[...p,v]); setSelId(v.id);
+    setUrlInput(v.url);
+    setShowNew(false); setNewForm({ title:"", folder:"Scrims", url:"" });
   };
 
-  const addReply = (ti, text) => {
-    if(!text.trim()||!sel) return;
-    const update = v => v.id===sel.id ? { ...v, ts:v.ts.map((t,i)=>i===ti?{...t,replies:[...t.replies,text]}:t) } : v;
-    setVods(p=>p.map(update));
-    setSel(prev=>update(prev));
-    setReply(r=>({...r,[ti]:""}));
+  const applyUrl = () => {
+    if(!sel) return;
+    mutateVod(sel.id, v=>({...v, url:urlInput.trim()}));
   };
+
+  const openAddTs = () => {
+    setTsForm({ time:"0:00", label:"", cat:"Rotation" });
+    setShowAddTs(true);
+  };
+
+  const confirmAddTs = () => {
+    if(!tsForm.label.trim()||!sel) return;
+    // parse time string like "1:23" or "0:45"
+    const parts = tsForm.time.split(":").map(Number);
+    const secs  = parts.length===3 ? parts[0]*3600+parts[1]*60+parts[2] : (parts[0]||0)*60+(parts[1]||0);
+    const ts = { id:Date.now(), time:fmt(secs), secs, label:tsForm.label.trim(), cat:tsForm.cat, note:"", strokes:[] };
+    mutateVod(sel.id, v=>({ ...v, ts:[...v.ts, ts].sort((a,b)=>a.secs-b.secs) }));
+    setSelTsId(ts.id);
+    setShowAddTs(false);
+  };
+
+  const updateNote = (tsId, note) => mutateTs(tsId, t=>({...t,note}));
+  const updateStrokes = (tsId, strokes) => mutateTs(tsId, t=>({...t,strokes}));
+  const deleteTs = (tsId) => {
+    if(!sel) return;
+    mutateVod(sel.id, v=>({...v, ts:v.ts.filter(t=>t.id!==tsId)}));
+    if(selTsId===tsId) setSelTsId(null);
+  };
+
+  // sync URL input when switching reviews
+  React.useEffect(()=>{ setUrlInput(sel?.url||""); setSelTsId(null); }, [selId]);
+
+  const embedUrl = sel ? getEmbedUrl(sel.url) : null;
 
   return (
     <div style={{ padding:"28px 32px" }}>
@@ -953,6 +1319,7 @@ function VodReview() {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"200px 1fr", gap:18 }}>
+        {/* Sidebar */}
         <div>
           <div className="label-sm" style={{ marginBottom:8 }}>Folders</div>
           {FOLDERS.map(f=>(
@@ -966,61 +1333,143 @@ function VodReview() {
           {filteredVods.length===0
             ? <div style={{ color:"var(--t3)", fontSize:12, padding:"4px 0" }}>No reviews yet.</div>
             : filteredVods.map(v=>(
-              <div key={v.id} onClick={()=>setSel(v)} style={{ padding:"10px 11px", borderRadius:"var(--r2)", cursor:"pointer", marginBottom:5,
-                background:sel?.id===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===v.id?"var(--b3)":"var(--b1)"}` }}>
+              <div key={v.id} onClick={()=>setSelId(v.id)} style={{ padding:"10px 11px", borderRadius:"var(--r2)", cursor:"pointer", marginBottom:5,
+                background:selId===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${selId===v.id?"var(--b3)":"var(--b1)"}` }}>
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:3 }}>{v.title}</div>
-                <div style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} annotations</div>
+                <div style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} timestamps</div>
               </div>
             ))
           }
         </div>
 
+        {/* Main area */}
         {sel ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden", aspectRatio:"16/6.5", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              {sel.url
-                ? <iframe src={sel.url} width="100%" height="100%" style={{ border:"none" }} allowFullScreen/>
+          <div style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
+            {/* Video */}
+            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden", aspectRatio:"16/9", position:"relative" }}>
+              {embedUrl
+                ? <iframe
+                    key={embedUrl}
+                    src={embedUrl}
+                    width="100%" height="100%"
+                    style={{ border:"none", display:"block" }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
                 : (
-                  <div style={{ textAlign:"center", color:"var(--t3)" }}>
-                    <div style={{ fontSize:40, marginBottom:8 }}>▶</div>
-                    <div style={{ marginBottom:10 }}>No VOD attached</div>
-                    <button className="btn btn-sub" style={{ fontSize:12 }}>Paste YouTube URL</button>
+                  <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--t3)" }}>
+                    <div style={{ fontSize:40 }}>▶</div>
+                    <div style={{ fontSize:13 }}>No video attached — paste a YouTube URL below</div>
                   </div>
                 )
               }
             </div>
+
+            {/* URL bar */}
+            <div style={{ display:"flex", gap:8 }}>
+              <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
+                onChange={e=>setUrlInput(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }}
+                style={{ flex:1 }}/>
+              <button className="btn btn-sub" onClick={applyUrl}>Load</button>
+            </div>
+
+            {/* Title + Add Timestamp */}
             <div className="card" style={{ padding:"14px 18px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.title}</span>
-                <button className="btn btn-sub" style={{ fontSize:11 }}>+ Timestamp</button>
+                <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
               </div>
             </div>
-            <div className="card">
-              <div className="label-sm" style={{ marginBottom:12 }}>ANNOTATIONS ({sel.ts.length})</div>
-              {sel.ts.length===0
-                ? <div style={{ color:"var(--t3)", fontSize:13 }}>No annotations yet. Add timestamps to start reviewing.</div>
-                : sel.ts.map((t,ti)=>(
-                  <div key={ti} className="vts" style={{ borderBottom:ti<sel.ts.length-1?"1px solid var(--b1)":"none" }}>
-                    <div style={{ background:(TS_COLORS[t.cat]||"#8892aa")+"18", color:TS_COLORS[t.cat]||"#8892aa", border:`1px solid ${(TS_COLORS[t.cat]||"#8892aa")}30`,
-                      padding:"5px 9px", borderRadius:6, fontFamily:"'JetBrains Mono'", fontSize:11, flexShrink:0, minWidth:48, textAlign:"center" }}>
-                      {t.time}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:10, fontWeight:700, color:TS_COLORS[t.cat]||"#8892aa", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:3 }}>{t.cat}</div>
-                      <div style={{ fontSize:13, color:"var(--t2)", marginBottom:6 }}>{t.note}</div>
-                      {t.replies.map((r,ri)=>(
-                        <div key={ri} style={{ fontSize:12, color:"var(--t3)", background:"var(--s2)", borderRadius:5, padding:"5px 9px", marginBottom:4, borderLeft:"2px solid var(--b3)" }}>↩ {r}</div>
-                      ))}
-                      <div style={{ display:"flex", gap:6 }}>
-                        <input type="text" placeholder="Reply..." value={reply[ti]||""} onChange={e=>setReply(r=>({...r,[ti]:e.target.value}))}
-                          onKeyDown={e=>{ if(e.key==="Enter") addReply(ti,reply[ti]||""); }}
-                          style={{ flex:1, padding:"5px 10px", fontSize:12 }}/>
-                        <button className="btn btn-ghost" style={{ padding:"4px 10px", fontSize:11 }} onClick={()=>addReply(ti,reply[ti]||"")}>Reply</button>
+
+            {/* Timestamps + Notes/Draw panel */}
+            <div style={{ display:"grid", gridTemplateColumns:"220px 1fr", gap:14, minHeight:380 }}>
+              {/* Timestamps list */}
+              <div className="card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)" }}>
+                  <div className="label-sm">TIMESTAMPS ({sel.ts.length})</div>
+                </div>
+                <div style={{ flex:1, overflowY:"auto" }}>
+                  {sel.ts.length===0
+                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.6 }}>No annotations yet.<br/>Add timestamps to start reviewing.</div>
+                    : sel.ts.map(t=>(
+                      <div key={t.id}
+                        onClick={()=>{ setSelTsId(t.id); setActiveTab("notes"); }}
+                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)",
+                          background:selTsId===t.id?"var(--s3)":"transparent",
+                          borderLeft:selTsId===t.id?`2px solid ${TS_COLORS[t.cat]||"var(--acc)"}`:undefined }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div>
+                            <span style={{ fontFamily:"'JetBrains Mono'", fontSize:11, color:TS_COLORS[t.cat]||"var(--acc)", fontWeight:700 }}>{t.time}</span>
+                            <div style={{ fontSize:12, color:"var(--t1)", marginTop:2, fontWeight:500 }}>{t.label}</div>
+                            <span style={{ fontSize:10, color:TS_COLORS[t.cat]||"var(--t3)" }}>{t.cat}</span>
+                          </div>
+                          <button onClick={e=>{e.stopPropagation();deleteTs(t.id);}}
+                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px", flexShrink:0 }}>×</button>
+                        </div>
+                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</div>}
+                        {t.strokes?.length>0 && <div style={{ fontSize:9, color:"var(--acc)", marginTop:3, opacity:0.7 }}>✏ {t.strokes.length} drawing{t.strokes.length!==1?"s":""}</div>}
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+
+              {/* Notes / Draw panel */}
+              {selTs ? (
+                <div className="card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+                  {/* Tab bar */}
+                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"0 14px", alignItems:"center", gap:4 }}>
+                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:11, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700, marginRight:8 }}>{selTs.time}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
+                    {["notes","draw"].map(tab=>(
+                      <button key={tab} onClick={()=>setActiveTab(tab)}
+                        style={{ padding:"10px 14px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab?"var(--acc)":"transparent"}`,
+                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:600,
+                          letterSpacing:"0.06em", transition:"all 0.15s" }}>
+                        {tab==="notes"?"📝 NOTES":"✏️ DRAW"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Notes tab */}
+                  {activeTab==="notes" && (
+                    <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
+                      <div className="label-sm">Notes for this timestamp</div>
+                      <textarea
+                        value={selTs.note}
+                        onChange={e=>updateNote(selTs.id, e.target.value)}
+                        placeholder="Add your notes, observations, and feedback for this moment..."
+                        style={{ flex:1, resize:"none", minHeight:200, lineHeight:1.65, padding:12, fontSize:13,
+                          background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)",
+                          color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}
+                      />
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
+                        <span style={{ fontSize:11, color:"var(--green)" }}>✓ Auto-saved</span>
                       </div>
                     </div>
+                  )}
+
+                  {/* Draw tab */}
+                  {activeTab==="draw" && (
+                    <div style={{ flex:1, overflow:"hidden" }}>
+                      <DrawCanvas
+                        strokes={selTs.strokes||[]}
+                        onStrokes={s=>updateStrokes(selTs.id,s)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <div style={{ textAlign:"center", color:"var(--t3)" }}>
+                    <div style={{ fontSize:32, marginBottom:10 }}>←</div>
+                    <div style={{ fontSize:13 }}>Select a timestamp to view notes and drawings</div>
                   </div>
-                ))
-              }
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1035,6 +1484,7 @@ function VodReview() {
         )}
       </div>
 
+      {/* New Review Modal */}
       {showNew && (
         <Modal onClose={()=>setShowNew(false)} title="New VOD Review">
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -1044,10 +1494,36 @@ function VodReview() {
                 {FOLDERS.filter(f=>f!=="All").map(f=><option key={f}>{f}</option>)}
               </select>
             </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div><input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtube.com/..."/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div><input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtube.com/watch?v=... or https://youtu.be/..."/></div>
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={addVod}>Create Review</button>
               <button className="btn btn-ghost" onClick={()=>setShowNew(false)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Timestamp Modal */}
+      {showAddTs && (
+        <Modal onClose={()=>setShowAddTs(false)} title="Add Timestamp">
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <div className="label-sm" style={{ marginBottom:6 }}>Time (m:ss or h:mm:ss)</div>
+              <input type="text" value={tsForm.time} onChange={e=>setTsForm(f=>({...f,time:e.target.value}))} placeholder="e.g. 1:23 or 0:45"/>
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:6 }}>Label</div>
+              <input type="text" value={tsForm.label} onChange={e=>setTsForm(f=>({...f,label:e.target.value}))} placeholder="Describe this moment..."/>
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:6 }}>Category</div>
+              <select value={tsForm.cat} onChange={e=>setTsForm(f=>({...f,cat:e.target.value}))}>
+                {Object.keys({ "Rotation":1,"Util Usage":1,"Mistake":1,"Win Cond":1,"General":1 }).map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={confirmAddTs} disabled={!tsForm.label.trim()}>Add</button>
+              <button className="btn btn-ghost" onClick={()=>setShowAddTs(false)}>Cancel</button>
             </div>
           </div>
         </Modal>
