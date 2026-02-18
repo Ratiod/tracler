@@ -680,6 +680,7 @@ function Playbooks() {
 
   const [pbs, setPbsRaw]  = useState(load);
   const [sel, setSel]     = useState(null);
+  const [blobUrl, setBlobUrl] = useState(null);
   const [modal, setModal] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [form, setForm]   = useState({ name:"", map:"Ascent", desc:"" });
@@ -690,8 +691,19 @@ function Playbooks() {
     save(next); return next;
   });
 
-  // Re-find sel in updated pbs to keep it fresh
-  React.useEffect(()=>{ if(sel) setSel(p=>pbs.find(x=>x.id===p?.id)||null); }, [pbs]);
+  // Convert base64 → blob URL whenever selection changes (blob URLs work in iframes, data: URLs don't)
+  React.useEffect(() => {
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    if (!sel?.pdfUrl) { setBlobUrl(null); return; }
+    try {
+      const base64 = sel.pdfUrl.split(",")[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      setBlobUrl(URL.createObjectURL(blob));
+    } catch { setBlobUrl(null); }
+  }, [sel?.id]);
 
   const handleUpload = (e) => {
     const file = e.target.files[0];
@@ -750,7 +762,7 @@ function Playbooks() {
             </div>
             <button className="btn btn-red" onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
           </div>
-          <iframe src={sel.pdfUrl} style={{ flex:1, border:"none", width:"100%", minHeight:500 }} title={sel.name}/>
+          <iframe src={blobUrl||""} style={{ flex:1, border:"none", width:"100%", minHeight:500 }} title={sel.name}/>
         </div>
       ) : (
         <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
@@ -787,6 +799,69 @@ function Playbooks() {
             </div>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+function ResizableImage({ src, tag, images, onResize }) {
+  const img = images.find(im => im.tag === tag);
+  const [width, setWidth] = useState(img?.width || 480);
+  const [resizing, setResizing] = useState(false);
+  const [selected, setSelected] = useState(false);
+  const startX = React.useRef(0);
+  const startW = React.useRef(0);
+  const containerRef = React.useRef(null);
+
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    setResizing(true);
+    startX.current = e.clientX;
+    startW.current = width;
+  };
+
+  React.useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e) => {
+      const newW = Math.max(80, Math.min(900, startW.current + (e.clientX - startX.current)));
+      setWidth(newW);
+    };
+    const onUp = () => {
+      setResizing(false);
+      onResize(tag, width);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [resizing, width]);
+
+  // Click outside to deselect
+  React.useEffect(() => {
+    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target)) setSelected(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} onClick={()=>setSelected(true)}
+      style={{ position:"relative", display:"inline-block", margin:"8px 0", cursor:"default", userSelect:"none" }}>
+      <img src={src} style={{ width, display:"block", borderRadius:"var(--r)", border:`2px solid ${selected?"var(--acc)":"var(--b2)"}`, transition:"border-color 0.15s" }} alt="pasted"/>
+      {selected && (
+        <>
+          {/* Corner handles */}
+          {[["topLeft","nw-resize",{top:-4,left:-4}],["topRight","ne-resize",{top:-4,right:-4}],
+            ["botLeft","sw-resize",{bottom:-4,left:-4}],["botRight","se-resize",{bottom:-4,right:-4}]].map(([k,cur,pos])=>(
+            <div key={k} style={{ position:"absolute", width:10, height:10, background:"var(--acc)", borderRadius:2, cursor:cur, ...pos }}
+              onMouseDown={k.includes("Right")?onMouseDown:undefined}/>
+          ))}
+          {/* Right edge drag handle */}
+          <div onMouseDown={onMouseDown}
+            style={{ position:"absolute", right:-4, top:"50%", transform:"translateY(-50%)", width:10, height:24, background:"var(--acc)", borderRadius:3, cursor:"ew-resize" }}/>
+          {/* Width label */}
+          <div style={{ position:"absolute", bottom:-22, left:"50%", transform:"translateX(-50%)", fontSize:10, color:"var(--acc)", background:"var(--s1)", padding:"1px 6px", borderRadius:3, whiteSpace:"nowrap", fontFamily:"'JetBrains Mono',monospace" }}>
+            {Math.round(width)}px
+          </div>
+        </>
       )}
     </div>
   );
@@ -860,14 +935,23 @@ function GamePlans() {
   };
 
   const renderBody = (body, images) => {
-    if (!body) return null;
+    if (!body && !(images?.length)) return null;
     const imgs = images || [];
-    const parts = body.split(/(\[img:\d+\])/g);
+    const parts = (body||"").split(/(\[img:\d+\])/g);
     return parts.map((part, i) => {
       const img = imgs.find(im => im.tag === part);
-      if (img) return <img key={i} src={img.src} style={{ maxWidth:"100%", borderRadius:"var(--r)", margin:"8px 0", border:"1px solid var(--b2)", display:"block" }} alt="pasted"/>;
+      if (img) return <ResizableImage key={i} src={img.src} tag={img.tag} images={imgs} onResize={(tag, w) => {
+        const updated = { ...sel, images: imgs.map(im => im.tag===tag ? {...im, width:w} : im) };
+        setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
+        setSel(updated);
+      }}/>;
       return part ? <span key={i} style={{ whiteSpace:"pre-wrap" }}>{part}</span> : null;
     });
+  };
+
+  // Also update editImages widths on resize while editing
+  const handleEditResize = (tag, w) => {
+    setEditImages(imgs => imgs.map(im => im.tag===tag ? {...im, width:w} : im));
   };
 
   const deleteDoc = (id) => {
@@ -939,13 +1023,13 @@ function GamePlans() {
                   placeholder="Write your game plan notes here. Paste screenshots with Ctrl+V — opponent tendencies, map strategies, setups..."/>
                 {editImages.length > 0 && (
                   <div>
-                    <div className="label-sm" style={{ marginBottom:8 }}>Pasted Images ({editImages.length})</div>
-                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    <div className="label-sm" style={{ marginBottom:8 }}>Pasted Images — click to resize, × to remove</div>
+                    <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
                       {editImages.map((img,i)=>(
                         <div key={img.tag} style={{ position:"relative" }}>
-                          <img src={img.src} style={{ width:80, height:60, objectFit:"cover", borderRadius:"var(--r)", border:"1px solid var(--b2)" }} alt={`img ${i+1}`}/>
+                          <ResizableImage src={img.src} tag={img.tag} images={editImages} onResize={handleEditResize}/>
                           <button onClick={()=>{ setEditImages(imgs=>imgs.filter(x=>x.tag!==img.tag)); setEditBody(b=>b.replace(`\n${img.tag}\n`,"")); }}
-                            style={{ position:"absolute", top:-6, right:-6, background:"var(--red)", border:"none", color:"#fff", borderRadius:"50%", width:16, height:16, fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                            style={{ position:"absolute", top:-8, right:-8, background:"var(--red)", border:"none", color:"#fff", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:10 }}>×</button>
                         </div>
                       ))}
                     </div>
