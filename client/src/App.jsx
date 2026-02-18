@@ -674,11 +674,24 @@ function RawDB() {
 }
 
 function Playbooks() {
-  const [pbs, setPbs]   = useState([]);
-  const [sel, setSel]   = useState(null);
+  const STORAGE_KEY = "ticra_playbooks_v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
+  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
+
+  const [pbs, setPbsRaw]  = useState(load);
+  const [sel, setSel]     = useState(null);
   const [modal, setModal] = useState(false);
-  const [form, setForm]  = useState({ name:"", map:"Ascent", desc:"" });
+  const [delConfirm, setDelConfirm] = useState(null);
+  const [form, setForm]   = useState({ name:"", map:"Ascent", desc:"" });
   const fileRef = React.useRef();
+
+  const setPbs = (fn) => setPbsRaw(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    save(next); return next;
+  });
+
+  // Re-find sel in updated pbs to keep it fresh
+  React.useEffect(()=>{ if(sel) setSel(p=>pbs.find(x=>x.id===p?.id)||null); }, [pbs]);
 
   const handleUpload = (e) => {
     const file = e.target.files[0];
@@ -692,7 +705,11 @@ function Playbooks() {
     e.target.value = "";
   };
 
-  const openModal = () => { setModal(true); };
+  const deletePb = (id) => {
+    setPbs(p => p.filter(x => x.id !== id));
+    if(sel?.id === id) setSel(null);
+    setDelConfirm(null);
+  };
 
   return (
     <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
@@ -700,17 +717,20 @@ function Playbooks() {
         <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
         <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
           {pbs.map((p)=>(
-            <div key={p.id} onClick={()=>setSel(p)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===p.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===p.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
-              <div style={{ fontWeight:600, marginBottom:4, fontSize:13 }}>{p.name}</div>
-              <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:p.desc?4:0 }}>
-                <span className="chip chip-blue">{p.map}</span>
-                <span style={{ fontSize:10, color:"var(--t3)" }}>PDF</span>
+            <div key={p.id} style={{ position:"relative" }}>
+              <div onClick={()=>setSel(p)} style={{ padding:"11px 13px", paddingRight:34, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===p.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===p.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+                <div style={{ fontWeight:600, marginBottom:4, fontSize:13 }}>{p.name}</div>
+                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                  <span className="chip chip-blue">{p.map}</span>
+                  <span style={{ fontSize:10, color:"var(--t3)" }}>PDF</span>
+                </div>
+                {p.desc && <div style={{ fontSize:11, color:"var(--t2)", marginTop:3, lineHeight:1.4 }}>{p.desc}</div>}
               </div>
-              {p.desc && <div style={{ fontSize:11, color:"var(--t2)", marginTop:3, lineHeight:1.4 }}>{p.desc}</div>}
+              <button onClick={()=>setDelConfirm(p)} style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px" }}>×</button>
             </div>
           ))}
         </div>
-        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={openModal}>+ Upload Playbook PDF</button>
+        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={()=>setModal(true)}>+ Upload Playbook PDF</button>
         <input ref={fileRef} type="file" accept="application/pdf" style={{ display:"none" }} onChange={handleUpload}/>
       </div>
 
@@ -724,7 +744,7 @@ function Playbooks() {
                 {sel.desc && <span style={{ fontSize:12, color:"var(--t2)" }}>{sel.desc}</span>}
               </div>
             </div>
-            <button className="btn btn-red" onClick={()=>{ setPbs(p=>p.filter(x=>x.id!==sel.id)); setSel(null); }}>✕ Remove</button>
+            <button className="btn btn-red" onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
           </div>
           <iframe src={sel.pdfUrl} style={{ flex:1, border:"none", width:"100%", minHeight:500 }} title={sel.name}/>
         </div>
@@ -743,7 +763,7 @@ function Playbooks() {
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div><div className="label-sm" style={{ marginBottom:6 }}>Playbook Name</div><input type="text" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Ascent Attack Executes"/></div>
             <div><div className="label-sm" style={{ marginBottom:6 }}>Map</div><select value={form.map} onChange={e=>setForm(f=>({...f,map:e.target.value}))}>{MAPS.map(m=><option key={m}>{m}</option>)}</select></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Description (optional)</div><input type="text" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Short description of this playbook"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Description (optional)</div><input type="text" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Short description"/></div>
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={()=>fileRef.current?.click()}>Choose PDF File</button>
               <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
@@ -752,17 +772,42 @@ function Playbooks() {
           </div>
         </Modal>
       )}
+
+      {delConfirm && (
+        <Modal onClose={()=>setDelConfirm(null)} title="Delete Playbook?">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.name}"</strong>? This cannot be undone.</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>deletePb(delConfirm.id)}>🗑 Yes, Delete</button>
+              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
 function GamePlans() {
-  const [docs, setDocs]   = useState([]);
-  const [sel, setSel]     = useState(null);
-  const [modal, setModal] = useState(false);
+  const STORAGE_KEY = "ticra_gameplans_v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
+  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
+
+  const [docs, setDocsRaw]    = useState(load);
+  const [sel, setSel]         = useState(null);
+  const [modal, setModal]     = useState(false);
   const [editing, setEditing] = useState(false);
-  const [form, setForm]   = useState({ title:"", opp:"", maps:[], side:"atk", body:"" });
+  const [delConfirm, setDelConfirm] = useState(null);
+  const [form, setForm]       = useState({ title:"", opp:"", maps:[], side:"atk", body:"" });
   const [editBody, setEditBody] = useState("");
+
+  const setDocs = (fn) => setDocsRaw(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    save(next); return next;
+  });
+
+  // Keep sel fresh
+  React.useEffect(()=>{ if(sel) setSel(docs.find(d=>d.id===sel.id)||null); }, [docs]);
 
   const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
 
@@ -782,7 +827,11 @@ function GamePlans() {
     setEditing(false);
   };
 
-  const deleteDoc = (id) => { setDocs(p=>p.filter(d=>d.id!==id)); if(sel?.id===id) setSel(null); };
+  const deleteDoc = (id) => {
+    setDocs(p=>p.filter(d=>d.id!==id));
+    if(sel?.id===id) setSel(null);
+    setDelConfirm(null);
+  };
 
   return (
     <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
@@ -790,13 +839,16 @@ function GamePlans() {
         <div className="label-sm" style={{ marginBottom:8 }}>Game Plans</div>
         <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
           {docs.map(d=>(
-            <div key={d.id} onClick={()=>{ setSel(d); setEditing(false); }} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
-              <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{d.title}</div>
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                {d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
-                {d.opp && <span className="chip chip-purple">vs {d.opp}</span>}
+            <div key={d.id} style={{ position:"relative" }}>
+              <div onClick={()=>{ setSel(d); setEditing(false); }} style={{ padding:"11px 13px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+                <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{d.title}</div>
+                <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                  {d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
+                  {d.opp && <span className="chip chip-purple">vs {d.opp}</span>}
+                </div>
+                <div style={{ fontSize:11, color:"var(--t3)", marginTop:3 }}>{d.date}</div>
               </div>
-              <div style={{ fontSize:11, color:"var(--t3)", marginTop:3 }}>{d.date}</div>
+              <button onClick={()=>setDelConfirm(d)} style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px" }}>×</button>
             </div>
           ))}
         </div>
@@ -824,7 +876,7 @@ function GamePlans() {
               ) : (
                 <>
                   <button className="btn btn-sub" style={{ fontSize:12 }} onClick={()=>{ setEditBody(sel.body); setEditing(true); }}>✎ Edit</button>
-                  <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>deleteDoc(sel.id)}>✕</button>
+                  <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
                 </>
               )}
             </div>
@@ -882,16 +934,37 @@ function GamePlans() {
           </div>
         </Modal>
       )}
+
+      {delConfirm && (
+        <Modal onClose={()=>setDelConfirm(null)} title="Delete Game Plan?">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.title}"</strong>? This cannot be undone.</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>deleteDoc(delConfirm.id)}>🗑 Yes, Delete</button>
+              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
 function Compositions() {
-  const [comps, setComps]   = useState([]);
-  const [modal, setModal]   = useState(false);
-  const [selComp, setSelComp] = useState(null);
-  const [form, setForm]     = useState({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
+  const STORAGE_KEY = "ticra_comps_v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
+  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
+
+  const [comps, setCompsRaw]  = useState(load);
+  const [modal, setModal]     = useState(false);
+  const [delConfirm, setDelConfirm] = useState(null);
+  const [form, setForm]       = useState({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
   const ROLES = ["Duelist","Initiator","Controller","Sentinel"];
+
+  const setComps = (fn) => setCompsRaw(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    save(next); return next;
+  });
 
   const toggleAgent = ag => {
     setForm(f=>{
@@ -909,7 +982,7 @@ function Compositions() {
     setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
   };
 
-  const del = id => { setComps(p=>p.filter(c=>c.id!==id)); if(selComp?.id===id) setSelComp(null); };
+  const del = id => { setDelConfirm(comps.find(c=>c.id===id)); };
 
   return (
     <div>
@@ -993,6 +1066,18 @@ function Compositions() {
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create} disabled={form.agents.length===0}>Create Composition</button>
               <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {delConfirm && (
+        <Modal onClose={()=>setDelConfirm(null)} title="Delete Composition?">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.name}"</strong>? This cannot be undone.</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>{ setComps(p=>p.filter(c=>c.id!==delConfirm.id)); setDelConfirm(null); }}>🗑 Yes, Delete</button>
+              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
             </div>
           </div>
         </Modal>
@@ -1295,75 +1380,89 @@ function DrawCanvas({ strokes, onStrokes }) {
    VOD REVIEW
 ════════════════════════════════════════ */
 function VodReview() {
-  const [vods, setVods]                 = useState([]);
+  const STORAGE_KEY = "ticra_vods_v2";
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
+
+  const [vods, setVodsRaw]              = useState(load);
   const [selId, setSelId]               = useState(null);
   const [showNew, setShowNew]           = useState(false);
   const [activeFolder, setActiveFolder] = useState("All");
   const [newForm, setNewForm]           = useState({ title:"", folder:"Scrims", url:"" });
   const [selTsId, setSelTsId]           = useState(null);
-  const [activeTab, setActiveTab]       = useState("notes"); // "notes" | "draw"
+  const [activeTab, setActiveTab]       = useState("notes");
   const [showAddTs, setShowAddTs]       = useState(false);
-  const [tsForm, setTsForm]             = useState({ time:"", label:"", cat:"Rotation" });
+  const [tsForm, setTsForm]             = useState({ time:"0:00", label:"", cat:"Rotation" });
   const [urlInput, setUrlInput]         = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showAnnotate, setShowAnnotate] = useState(false);
 
   const FOLDERS   = ["All","Scrims","Opponent Analysis","Officials"];
   const TS_COLORS = { "Rotation":"#4fc3f7","Util Usage":"#b39ddb","Mistake":"#ff5252","Win Cond":"#69f0ae","General":"#ffab40" };
 
+  const setVods = (fn) => {
+    setVodsRaw(prev => {
+      const next = typeof fn === "function" ? fn(prev) : fn;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch{}
+      return next;
+    });
+  };
+
   const filteredVods = activeFolder==="All" ? vods : vods.filter(v=>v.folder===activeFolder);
-  const sel     = vods.find(v=>v.id===selId) || null;
-  const selTs   = sel?.ts.find(t=>t.id===selTsId) || null;
+  const sel   = vods.find(v=>v.id===selId) || null;
+  const selTs = sel?.ts.find(t=>t.id===selTsId) || null;
 
   const mutateVod = (id, fn) => setVods(vs=>vs.map(v=>v.id===id?fn(v):v));
-  const mutateTs  = (tsId, fn) => {
-    if(!sel) return;
-    mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) }));
-  };
+  const mutateTs  = (tsId, fn) => { if(!sel) return; mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) })); };
 
   const addVod = () => {
     if(!newForm.title.trim()) return;
-    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[] };
-    setVods(p=>[...p,v]); setSelId(v.id);
-    setUrlInput(v.url);
+    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[], createdAt:new Date().toLocaleDateString() };
+    setVods(p=>[...p,v]); setSelId(v.id); setUrlInput(v.url);
     setShowNew(false); setNewForm({ title:"", folder:"Scrims", url:"" });
   };
 
-  const applyUrl = () => {
-    if(!sel) return;
-    mutateVod(sel.id, v=>({...v, url:urlInput.trim()}));
+  const deleteVod = (id) => {
+    setVods(vs=>vs.filter(v=>v.id!==id));
+    if(selId===id) { setSelId(null); setSelTsId(null); }
+    setDeleteConfirm(null);
   };
 
-  const openAddTs = () => {
-    setTsForm({ time:"0:00", label:"", cat:"Rotation" });
-    setShowAddTs(true);
-  };
+  const applyUrl = () => { if(!sel) return; mutateVod(sel.id, v=>({...v, url:urlInput.trim()})); };
+
+  const openAddTs = () => { setTsForm({ time:"0:00", label:"", cat:"Rotation" }); setShowAddTs(true); };
 
   const confirmAddTs = () => {
     if(!tsForm.label.trim()||!sel) return;
-    // parse time string like "1:23" or "0:45"
     const parts = tsForm.time.split(":").map(Number);
     const secs  = parts.length===3 ? parts[0]*3600+parts[1]*60+parts[2] : (parts[0]||0)*60+(parts[1]||0);
     const ts = { id:Date.now(), time:fmt(secs), secs, label:tsForm.label.trim(), cat:tsForm.cat, note:"", strokes:[] };
     mutateVod(sel.id, v=>({ ...v, ts:[...v.ts, ts].sort((a,b)=>a.secs-b.secs) }));
-    setSelTsId(ts.id);
+    setSelTsId(ts.id); setActiveTab("notes");
     setShowAddTs(false);
   };
 
-  const updateNote = (tsId, note) => mutateTs(tsId, t=>({...t,note}));
-  const updateStrokes = (tsId, strokes) => mutateTs(tsId, t=>({...t,strokes}));
   const deleteTs = (tsId) => {
     if(!sel) return;
     mutateVod(sel.id, v=>({...v, ts:v.ts.filter(t=>t.id!==tsId)}));
     if(selTsId===tsId) setSelTsId(null);
+    setDeleteConfirm(null);
   };
 
-  // sync URL input when switching reviews
-  React.useEffect(()=>{ setUrlInput(sel?.url||""); setSelTsId(null); }, [selId]);
+  const updateNote    = (tsId, note)    => mutateTs(tsId, t=>({...t,note}));
+  const updateStrokes = (tsId, strokes) => mutateTs(tsId, t=>({...t,strokes}));
+
+  React.useEffect(()=>{ setUrlInput(sel?.url||""); setSelTsId(null); setShowAnnotate(false); }, [selId]);
 
   const embedUrl = sel ? getEmbedUrl(sel.url) : null;
+  const tsEmbedUrl = (ts) => {
+    if(!sel?.url) return null;
+    const base = getEmbedUrl(sel.url);
+    return base ? `${base}&start=${ts.secs}&autoplay=1` : null;
+  };
 
   return (
-    <div style={{ padding:"28px 32px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+    <div style={{ padding:"28px 32px", height:"calc(100vh - 60px)", display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <div>
           <div className="bc" style={{ fontSize:38, fontWeight:900, letterSpacing:"0.04em" }}>VOD REVIEW</div>
           <div style={{ color:"var(--t2)", fontSize:13, marginTop:2 }}>Annotate and discuss recordings with your team</div>
@@ -1371,9 +1470,9 @@ function VodReview() {
         <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"200px 1fr", gap:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"210px 1fr", gap:18, flex:1, minHeight:0 }}>
         {/* Sidebar */}
-        <div>
+        <div style={{ display:"flex", flexDirection:"column", overflowY:"auto" }}>
           <div className="label-sm" style={{ marginBottom:8 }}>Folders</div>
           {FOLDERS.map(f=>(
             <div key={f} onClick={()=>setActiveFolder(f)} style={{ padding:"7px 10px", borderRadius:"var(--r)", cursor:"pointer", marginBottom:3, fontSize:13,
@@ -1386,10 +1485,17 @@ function VodReview() {
           {filteredVods.length===0
             ? <div style={{ color:"var(--t3)", fontSize:12, padding:"4px 0" }}>No reviews yet.</div>
             : filteredVods.map(v=>(
-              <div key={v.id} onClick={()=>setSelId(v.id)} style={{ padding:"10px 11px", borderRadius:"var(--r2)", cursor:"pointer", marginBottom:5,
-                background:selId===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${selId===v.id?"var(--b3)":"var(--b1)"}` }}>
-                <div style={{ fontSize:12, fontWeight:500, marginBottom:3 }}>{v.title}</div>
-                <div style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} timestamps</div>
+              <div key={v.id} style={{ position:"relative", marginBottom:5 }}>
+                <div onClick={()=>setSelId(v.id)} style={{ padding:"10px 11px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer",
+                  background:selId===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${selId===v.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+                  <div style={{ fontSize:12, fontWeight:600, marginBottom:3 }}>{v.title}</div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <span style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} timestamps</span>
+                    <span style={{ fontSize:10, color:"var(--t3)" }}>· {v.folder}</span>
+                  </div>
+                </div>
+                <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({type:"vod",id:v.id,label:v.title}); }}
+                  style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px", borderRadius:4 }}>✕</button>
               </div>
             ))
           }
@@ -1397,129 +1503,133 @@ function VodReview() {
 
         {/* Main area */}
         {sel ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
-            {/* Video */}
-            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden", aspectRatio:"16/9", position:"relative" }}>
-              {embedUrl
-                ? <iframe
-                    key={embedUrl}
-                    src={embedUrl}
-                    width="100%" height="100%"
-                    style={{ border:"none", display:"block" }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    referrerPolicy="strict-origin-when-cross-origin"
-                  />
-                : (
-                  <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--t3)" }}>
-                    <div style={{ fontSize:40 }}>▶</div>
-                    <div style={{ fontSize:13 }}>No video attached — paste a YouTube URL below</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:12, minWidth:0, minHeight:0, overflow:"hidden" }}>
+
+            {/* Top row: video + annotation side by side */}
+            <div style={{ display:"grid", gridTemplateColumns: showAnnotate ? "1fr 1fr" : "1fr", gap:12, minHeight:0 }}>
+              {/* Video */}
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ position:"relative", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden", aspectRatio:"16/9" }}>
+                  {embedUrl
+                    ? <iframe key={selTs ? `ts-${selTs.id}` : embedUrl}
+                        src={selTs ? (tsEmbedUrl(selTs)||embedUrl) : embedUrl}
+                        width="100%" height="100%"
+                        style={{ border:"none", display:"block" }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>
+                    : <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--t3)" }}>
+                        <div style={{ fontSize:40 }}>▶</div>
+                        <div style={{ fontSize:13 }}>No video — paste a YouTube URL below</div>
+                      </div>
+                  }
+                </div>
+                {/* URL bar */}
+                <div style={{ display:"flex", gap:8 }}>
+                  <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
+                    onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }} style={{ flex:1 }}/>
+                  <button className="btn btn-sub" onClick={applyUrl}>Load</button>
+                </div>
+              </div>
+
+              {/* Annotation panel — shown side by side with video */}
+              {showAnnotate && (
+                <div style={{ background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", minHeight:200 }}>
+                  <div style={{ padding:"8px 14px", borderBottom:"1px solid var(--b1)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:"var(--acc)" }}>✏️ ANNOTATION CANVAS</span>
+                    {selTs
+                      ? <span style={{ fontSize:11, color:"var(--t2)" }}>Drawing on: <strong style={{ color:"var(--t1)" }}>{selTs.time} — {selTs.label}</strong></span>
+                      : <span style={{ fontSize:11, color:"var(--t3)" }}>Select a timestamp first to save drawings</span>
+                    }
                   </div>
-                )
-              }
+                  <div style={{ flex:1, minHeight:0 }}>
+                    <DrawCanvas strokes={selTs?.strokes||[]} onStrokes={s=>{ if(selTs) updateStrokes(selTs.id,s); }}/>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* URL bar */}
-            <div style={{ display:"flex", gap:8 }}>
-              <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
-                onChange={e=>setUrlInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }}
-                style={{ flex:1 }}/>
-              <button className="btn btn-sub" onClick={applyUrl}>Load</button>
-            </div>
-
-            {/* Title + Add Timestamp */}
-            <div className="card" style={{ padding:"14px 18px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.title}</span>
+            {/* Title + action bar */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"10px 16px" }}>
+              <span className="bc" style={{ fontSize:18, fontWeight:700 }}>{sel.title}</span>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-sub" style={{ fontSize:11 }} onClick={()=>setShowAnnotate(a=>!a)}>
+                  {showAnnotate ? "✕ Close Annotate" : "✏️ Annotate"}
+                </button>
                 <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
+                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>setDeleteConfirm({type:"vod",id:sel.id,label:sel.title})}>🗑 Delete Review</button>
               </div>
             </div>
 
-            {/* Timestamps + Notes/Draw panel */}
-            <div style={{ display:"grid", gridTemplateColumns:"220px 1fr", gap:14, minHeight:380 }}>
-              {/* Timestamps list */}
-              <div className="card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)" }}>
-                  <div className="label-sm">TIMESTAMPS ({sel.ts.length})</div>
+            {/* Timestamps + Notes panel */}
+            <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:12, flex:1, minHeight:200 }}>
+              <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
+                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span className="label-sm">Timestamps ({sel.ts.length})</span>
+                  <button onClick={openAddTs} style={{ fontSize:10, fontWeight:700, color:"var(--acc)", background:"rgba(212,255,30,0.1)", border:"1px solid rgba(212,255,30,0.2)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>+ ADD</button>
                 </div>
                 <div style={{ flex:1, overflowY:"auto" }}>
                   {sel.ts.length===0
-                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.6 }}>No annotations yet.<br/>Add timestamps to start reviewing.</div>
+                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.7 }}>No timestamps yet.<br/>Click <strong style={{ color:"var(--acc)" }}>+ Timestamp</strong> to mark a moment.</div>
                     : sel.ts.map(t=>(
-                      <div key={t.id}
-                        onClick={()=>{ setSelTsId(t.id); setActiveTab("notes"); }}
-                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)",
+                      <div key={t.id} onClick={()=>{ setSelTsId(t.id); setActiveTab("notes"); }}
+                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)", position:"relative",
                           background:selTsId===t.id?"var(--s3)":"transparent",
-                          borderLeft:selTsId===t.id?`2px solid ${TS_COLORS[t.cat]||"var(--acc)"}`:undefined }}>
+                          borderLeft:`3px solid ${selTsId===t.id?(TS_COLORS[t.cat]||"var(--acc)"):"transparent"}`, transition:"all 0.1s" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                          <div>
+                          <div style={{ flex:1, minWidth:0 }}>
                             <span style={{ fontFamily:"'JetBrains Mono'", fontSize:11, color:TS_COLORS[t.cat]||"var(--acc)", fontWeight:700 }}>{t.time}</span>
-                            <div style={{ fontSize:12, color:"var(--t1)", marginTop:2, fontWeight:500 }}>{t.label}</div>
+                            <div style={{ fontSize:12, color:"var(--t1)", marginTop:2, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.label}</div>
                             <span style={{ fontSize:10, color:TS_COLORS[t.cat]||"var(--t3)" }}>{t.cat}</span>
                           </div>
-                          <button onClick={e=>{e.stopPropagation();deleteTs(t.id);}}
-                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px", flexShrink:0 }}>×</button>
+                          <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({type:"ts",id:t.id,label:t.label}); }}
+                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"0 4px", flexShrink:0, lineHeight:1 }}>×</button>
                         </div>
-                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.note}</div>}
-                        {t.strokes?.length>0 && <div style={{ fontSize:9, color:"var(--acc)", marginTop:3, opacity:0.7 }}>✏ {t.strokes.length} drawing{t.strokes.length!==1?"s":""}</div>}
+                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {t.note}</div>}
+                        {t.strokes?.length>0 && <div style={{ fontSize:10, color:"var(--acc)", marginTop:2 }}>✏ {t.strokes.length} drawing{t.strokes.length!==1?"s":""}</div>}
                       </div>
                     ))
                   }
                 </div>
               </div>
 
-              {/* Notes / Draw panel */}
               {selTs ? (
-                <div className="card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                  {/* Tab bar */}
+                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
                   <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"0 14px", alignItems:"center", gap:4 }}>
-                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:11, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700, marginRight:8 }}>{selTs.time}</span>
-                    <span style={{ fontSize:12, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
+                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:12, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700, marginRight:6 }}>{selTs.time}</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
+                    <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30`, marginRight:8 }}>{selTs.cat}</span>
                     {["notes","draw"].map(tab=>(
                       <button key={tab} onClick={()=>setActiveTab(tab)}
                         style={{ padding:"10px 14px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab?"var(--acc)":"transparent"}`,
-                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:600,
-                          letterSpacing:"0.06em", transition:"all 0.15s" }}>
+                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:600, letterSpacing:"0.05em", transition:"all 0.15s" }}>
                         {tab==="notes"?"📝 NOTES":"✏️ DRAW"}
                       </button>
                     ))}
                   </div>
-
-                  {/* Notes tab */}
                   {activeTab==="notes" && (
                     <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
-                      <div className="label-sm">Notes for this timestamp</div>
-                      <textarea
-                        value={selTs.note}
-                        onChange={e=>updateNote(selTs.id, e.target.value)}
-                        placeholder="Add your notes, observations, and feedback for this moment..."
-                        style={{ flex:1, resize:"none", minHeight:200, lineHeight:1.65, padding:12, fontSize:13,
-                          background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)",
-                          color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}
-                      />
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
+                        placeholder="Add your observations, callouts, feedback for this moment..."
+                        style={{ flex:1, resize:"none", minHeight:150, lineHeight:1.75, padding:12, fontSize:13,
+                          background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
-                        <span style={{ fontSize:11, color:"var(--green)" }}>✓ Auto-saved</span>
+                        <span style={{ fontSize:11, color:"var(--green)" }}>✓ Saved automatically</span>
                       </div>
                     </div>
                   )}
-
-                  {/* Draw tab */}
                   {activeTab==="draw" && (
-                    <div style={{ flex:1, overflow:"hidden" }}>
-                      <DrawCanvas
-                        strokes={selTs.strokes||[]}
-                        onStrokes={s=>updateStrokes(selTs.id,s)}
-                      />
+                    <div style={{ flex:1, overflow:"hidden", minHeight:200 }}>
+                      <DrawCanvas strokes={selTs.strokes||[]} onStrokes={s=>updateStrokes(selTs.id,s)}/>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                   <div style={{ textAlign:"center", color:"var(--t3)" }}>
                     <div style={{ fontSize:32, marginBottom:10 }}>←</div>
-                    <div style={{ fontSize:13 }}>Select a timestamp to view notes and drawings</div>
+                    <div style={{ fontSize:13, marginBottom:8 }}>Select a timestamp to add notes & drawings</div>
+                    <div style={{ fontSize:11, color:"var(--t3)" }}>Use <strong style={{ color:"var(--acc)" }}>✏️ Annotate</strong> to draw over the video</div>
                   </div>
                 </div>
               )}
@@ -1530,24 +1640,26 @@ function VodReview() {
             <div style={{ textAlign:"center", color:"var(--t3)" }}>
               <div style={{ fontSize:40, marginBottom:12 }}>▶</div>
               <div className="bc" style={{ fontSize:20, fontWeight:700, marginBottom:8, color:"var(--t2)" }}>No Review Selected</div>
-              <div style={{ fontSize:13, marginBottom:20 }}>Create a new review to get started</div>
+              <div style={{ fontSize:13, marginBottom:20 }}>Create a new review or select one from the sidebar</div>
               <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* New Review Modal */}
       {showNew && (
         <Modal onClose={()=>setShowNew(false)} title="New VOD Review">
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div><input type="text" value={newForm.title} onChange={e=>setNewForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Cloud9 Loss Breakdown"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div>
+              <input autoFocus type="text" value={newForm.title} onChange={e=>setNewForm(f=>({...f,title:e.target.value}))}
+                onKeyDown={e=>e.key==="Enter"&&addVod()} placeholder="e.g. NRG vs LOUD — Ascent Review"/></div>
             <div><div className="label-sm" style={{ marginBottom:6 }}>Folder</div>
               <select value={newForm.folder} onChange={e=>setNewForm(f=>({...f,folder:e.target.value}))}>
                 {FOLDERS.filter(f=>f!=="All").map(f=><option key={f}>{f}</option>)}
               </select>
             </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div><input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtube.com/watch?v=... or https://youtu.be/..."/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div>
+              <input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtu.be/..."/></div>
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={addVod}>Create Review</button>
               <button className="btn btn-ghost" onClick={()=>setShowNew(false)}>Cancel</button>
@@ -1556,27 +1668,54 @@ function VodReview() {
         </Modal>
       )}
 
-      {/* Add Timestamp Modal */}
       {showAddTs && (
         <Modal onClose={()=>setShowAddTs(false)} title="Add Timestamp">
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div>
-              <div className="label-sm" style={{ marginBottom:6 }}>Time (m:ss or h:mm:ss)</div>
-              <input type="text" value={tsForm.time} onChange={e=>setTsForm(f=>({...f,time:e.target.value}))} placeholder="e.g. 1:23 or 0:45"/>
+            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"14px 16px", textAlign:"center" }}>
+              <div className="label-sm" style={{ marginBottom:6 }}>Current Video Time</div>
+              <div style={{ fontFamily:"'JetBrains Mono'", fontSize:32, fontWeight:700, color:"var(--acc)", marginBottom:8, letterSpacing:"0.05em" }}>{tsForm.time}</div>
+              <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap" }}>
+                {[0,15,30,60,90,120,180,300].map(s=>(
+                  <button key={s} onClick={()=>setTsForm(f=>({...f,time:fmt(s)}))}
+                    style={{ padding:"3px 10px", borderRadius:"var(--r)", fontSize:11, fontWeight:600, background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", cursor:"pointer" }}>
+                    {fmt(s)}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:11, color:"var(--t3)", marginTop:8 }}>Pick a preset or type the time manually below · Pause your video first!</div>
             </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:6 }}>Label</div>
-              <input type="text" value={tsForm.label} onChange={e=>setTsForm(f=>({...f,label:e.target.value}))} placeholder="Describe this moment..."/>
-            </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:6 }}>Category</div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Time (m:ss or h:mm:ss)</div>
+              <input autoFocus type="text" value={tsForm.time} onChange={e=>setTsForm(f=>({...f,time:e.target.value}))} placeholder="e.g. 1:23 or 12:45"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Label</div>
+              <input type="text" value={tsForm.label} onChange={e=>setTsForm(f=>({...f,label:e.target.value}))}
+                onKeyDown={e=>e.key==="Enter"&&confirmAddTs()} placeholder="Describe this moment..."/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Category</div>
               <select value={tsForm.cat} onChange={e=>setTsForm(f=>({...f,cat:e.target.value}))}>
-                {Object.keys({ "Rotation":1,"Util Usage":1,"Mistake":1,"Win Cond":1,"General":1 }).map(c=><option key={c}>{c}</option>)}
+                {Object.keys(TS_COLORS).map(c=><option key={c}>{c}</option>)}
               </select>
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={confirmAddTs} disabled={!tsForm.label.trim()}>Add</button>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={confirmAddTs} disabled={!tsForm.label.trim()}>Add Timestamp</button>
               <button className="btn btn-ghost" onClick={()=>setShowAddTs(false)}>Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {deleteConfirm && (
+        <Modal onClose={()=>setDeleteConfirm(null)} title="Confirm Delete">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>
+              Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{deleteConfirm.label}"</strong>?
+              {deleteConfirm.type==="vod" && <span> This will remove the review and all its timestamps permanently.</span>}
+              <br/>This cannot be undone.
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }}
+                onClick={()=>deleteConfirm.type==="vod" ? deleteVod(deleteConfirm.id) : deleteTs(deleteConfirm.id)}>
+                🗑 Yes, Delete
+              </button>
+              <button className="btn btn-ghost" onClick={()=>setDeleteConfirm(null)}>Cancel</button>
             </div>
           </div>
         </Modal>
@@ -1584,6 +1723,7 @@ function VodReview() {
     </div>
   );
 }
+
 
 /* ════════════════════════════════════════
    TASKS
