@@ -28,6 +28,14 @@ const css = `
   button { font-family:'Barlow',sans-serif; cursor:pointer; border:none; outline:none; }
   input,select,textarea { font-family:'Barlow',sans-serif; outline:none; }
   select option { background:var(--s2); }
+  /* Rich editor content styles */
+  .docs-editor h2 { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:800; color:var(--t1); margin:18px 0 8px; letter-spacing:0.02em; }
+  .docs-editor h3 { font-family:'Barlow Condensed',sans-serif; font-size:19px; font-weight:700; color:var(--t2); margin:14px 0 6px; }
+  .docs-editor p { margin:6px 0; }
+  .docs-editor ul, .docs-editor ol { padding-left:22px; margin:6px 0; }
+  .docs-editor li { margin:3px 0; }
+  .docs-editor b, .docs-editor strong { color:var(--t1); font-weight:700; }
+  .docs-editor img { border-radius:6px; }
   @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
   @keyframes slideRight { from{transform:scaleX(0)} to{transform:scaleX(1)} }
@@ -804,65 +812,270 @@ function Playbooks() {
   );
 }
 
-function ResizableImage({ src, tag, images, onResize }) {
-  const img = images.find(im => im.tag === tag);
-  const [width, setWidth] = useState(img?.width || 480);
-  const [resizing, setResizing] = useState(false);
-  const [selected, setSelected] = useState(false);
-  const startX = React.useRef(0);
-  const startW = React.useRef(0);
-  const containerRef = React.useRef(null);
+/* ─ Google Docs-style Rich Editor ─ */
+function DocsEditor({ value, onChange }) {
+  const editorRef = React.useRef(null);
+  const [selImg, setSelImg] = useState(null); // selected image id
+  const [dragState, setDragState] = useState(null); // {id, startX, startY, origX, origY}
+  const [resizeState, setResizeState] = useState(null); // {id, startX, origW}
+  const isComposing = React.useRef(false);
 
-  const onMouseDown = (e) => {
+  // Serialize editor DOM → value object {html, images:[{id,src,x,y,w,float}]}
+  const serialize = () => {
+    const el = editorRef.current;
+    if (!el) return value;
+    const imgs = [];
+    el.querySelectorAll("img[data-imgid]").forEach(img => {
+      imgs.push({
+        id: img.dataset.imgid,
+        src: img.src,
+        w: parseInt(img.style.width)||320,
+        float: img.style.float||"none",
+      });
+    });
+    return { html: el.innerHTML, images: imgs };
+  };
+
+  const commit = () => { onChange(serialize()); };
+
+  // Paste image handler
+  const onPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const id = `img_${Date.now()}`;
+          const imgEl = document.createElement("img");
+          imgEl.src = ev.target.result;
+          imgEl.dataset.imgid = id;
+          imgEl.style.width = "340px";
+          imgEl.style.display = "inline-block";
+          imgEl.style.verticalAlign = "top";
+          imgEl.style.margin = "6px 10px 6px 0";
+          imgEl.style.borderRadius = "6px";
+          imgEl.style.cursor = "pointer";
+          imgEl.style.border = "2px solid transparent";
+          imgEl.contentEditable = "false";
+          // Insert at cursor
+          const sel = window.getSelection();
+          if (sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(imgEl);
+            range.setStartAfter(imgEl);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          } else {
+            editorRef.current.appendChild(imgEl);
+          }
+          commit();
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
+
+  // Click on image to select it
+  const onEditorClick = (e) => {
+    const img = e.target.closest("img[data-imgid]");
+    if (img) {
+      e.preventDefault();
+      setSelImg(img.dataset.imgid);
+      // highlight
+      editorRef.current.querySelectorAll("img[data-imgid]").forEach(i => {
+        i.style.border = i.dataset.imgid === img.dataset.imgid ? "2px solid var(--acc)" : "2px solid transparent";
+        i.style.outline = "none";
+      });
+    } else {
+      setSelImg(null);
+      editorRef.current.querySelectorAll("img[data-imgid]").forEach(i => { i.style.border = "2px solid transparent"; });
+    }
+    commit();
+  };
+
+  // Drag image
+  const startDrag = (e, id) => {
     e.preventDefault();
-    setResizing(true);
-    startX.current = e.clientX;
-    startW.current = width;
+    const img = editorRef.current.querySelector(`img[data-imgid="${id}"]`);
+    if (!img) return;
+    const rect = img.getBoundingClientRect();
+    setDragState({ id, startX: e.clientX, startY: e.clientY, img, origFloat: img.style.float });
+    img.style.opacity = "0.7";
+  };
+
+  // Resize image
+  const startResize = (e, id, edge) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const img = editorRef.current.querySelector(`img[data-imgid="${id}"]`);
+    if (!img) return;
+    setResizeState({ id, startX: e.clientX, origW: img.offsetWidth, img, edge });
   };
 
   React.useEffect(() => {
-    if (!resizing) return;
+    if (!dragState && !resizeState) return;
+
     const onMove = (e) => {
-      const newW = Math.max(80, Math.min(900, startW.current + (e.clientX - startX.current)));
-      setWidth(newW);
+      if (resizeState) {
+        const { img, startX, origW, edge } = resizeState;
+        const delta = edge === "left" ? startX - e.clientX : e.clientX - startX;
+        const newW = Math.max(80, Math.min(860, origW + delta));
+        img.style.width = newW + "px";
+        return;
+      }
+      if (dragState) {
+        const { img, startX, startY } = dragState;
+        const dx = e.clientX - startX;
+        // Determine float based on horizontal position relative to editor
+        const editorRect = editorRef.current.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
+        const centerX = imgRect.left + imgRect.width/2 + dx;
+        const relX = (centerX - editorRect.left) / editorRect.width;
+        if (relX < 0.35) {
+          img.style.float = "left";
+          img.style.margin = "6px 14px 6px 0";
+        } else if (relX > 0.65) {
+          img.style.float = "right";
+          img.style.margin = "6px 0 6px 14px";
+        } else {
+          img.style.float = "none";
+          img.style.margin = "6px 10px 6px 0";
+          img.style.display = "block";
+          img.style.marginLeft = "auto";
+          img.style.marginRight = "auto";
+        }
+      }
     };
+
     const onUp = () => {
-      setResizing(false);
-      onResize(tag, width);
+      if (dragState) { dragState.img.style.opacity = "1"; }
+      setDragState(null);
+      setResizeState(null);
+      commit();
     };
+
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [resizing, width]);
+  }, [dragState, resizeState]);
 
-  // Click outside to deselect
+  // Delete selected image with Backspace/Delete
+  const onKeyDown = (e) => {
+    if ((e.key === "Backspace" || e.key === "Delete") && selImg) {
+      const img = editorRef.current.querySelector(`img[data-imgid="${selImg}"]`);
+      if (img && document.activeElement !== editorRef.current) {
+        e.preventDefault();
+        img.remove();
+        setSelImg(null);
+        commit();
+      }
+    }
+  };
+
+  // Format commands
+  const fmt = (cmd, val) => { document.execCommand(cmd, false, val); editorRef.current.focus(); commit(); };
+
+  // Sync initial HTML
   React.useEffect(() => {
-    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target)) setSelected(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    if (editorRef.current && value?.html !== undefined) {
+      if (editorRef.current.innerHTML !== value.html) {
+        editorRef.current.innerHTML = value.html || "";
+      }
+    }
   }, []);
 
+  const TOOLBAR_BTN = (label, action, title) => (
+    <button title={title||label} onMouseDown={e=>{e.preventDefault(); action();}}
+      style={{ padding:"4px 9px", background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", fontSize:12, fontWeight:600, cursor:"pointer", lineHeight:1.4 }}>
+      {label}
+    </button>
+  );
+
   return (
-    <div ref={containerRef} onClick={()=>setSelected(true)}
-      style={{ position:"relative", display:"inline-block", margin:"8px 0", cursor:"default", userSelect:"none" }}>
-      <img src={src} style={{ width, display:"block", borderRadius:"var(--r)", border:`2px solid ${selected?"var(--acc)":"var(--b2)"}`, transition:"border-color 0.15s" }} alt="pasted"/>
-      {selected && (
-        <>
-          {/* Corner handles */}
-          {[["topLeft","nw-resize",{top:-4,left:-4}],["topRight","ne-resize",{top:-4,right:-4}],
-            ["botLeft","sw-resize",{bottom:-4,left:-4}],["botRight","se-resize",{bottom:-4,right:-4}]].map(([k,cur,pos])=>(
-            <div key={k} style={{ position:"absolute", width:10, height:10, background:"var(--acc)", borderRadius:2, cursor:cur, ...pos }}
-              onMouseDown={k.includes("Right")?onMouseDown:undefined}/>
-          ))}
-          {/* Right edge drag handle */}
-          <div onMouseDown={onMouseDown}
-            style={{ position:"absolute", right:-4, top:"50%", transform:"translateY(-50%)", width:10, height:24, background:"var(--acc)", borderRadius:3, cursor:"ew-resize" }}/>
-          {/* Width label */}
-          <div style={{ position:"absolute", bottom:-22, left:"50%", transform:"translateX(-50%)", fontSize:10, color:"var(--acc)", background:"var(--s1)", padding:"1px 6px", borderRadius:3, whiteSpace:"nowrap", fontFamily:"'JetBrains Mono',monospace" }}>
-            {Math.round(width)}px
-          </div>
-        </>
-      )}
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", gap:0, background:"#1a1d28", borderRadius:"var(--r2)", border:"1px solid var(--b2)", overflow:"hidden" }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", gap:4, padding:"7px 12px", borderBottom:"1px solid var(--b1)", background:"var(--s2)", flexWrap:"wrap" }}>
+        {TOOLBAR_BTN("B", ()=>fmt("bold"), "Bold")}
+        {TOOLBAR_BTN("I", ()=>fmt("italic"), "Italic")}
+        {TOOLBAR_BTN("U", ()=>fmt("underline"), "Underline")}
+        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
+        {TOOLBAR_BTN("H1", ()=>fmt("formatBlock","h2"), "Heading")}
+        {TOOLBAR_BTN("H2", ()=>fmt("formatBlock","h3"), "Subheading")}
+        {TOOLBAR_BTN("¶", ()=>fmt("formatBlock","p"), "Paragraph")}
+        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
+        {TOOLBAR_BTN("• List", ()=>fmt("insertUnorderedList"), "Bullet list")}
+        {TOOLBAR_BTN("1. List", ()=>fmt("insertOrderedList"), "Numbered list")}
+        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
+        {TOOLBAR_BTN("🎨", ()=>{ const c=prompt("Hex color (e.g. #ff5252):","#d4ff1e"); if(c) fmt("foreColor",c); }, "Text color")}
+        {TOOLBAR_BTN("⬛ Hi", ()=>{ const c=prompt("Highlight color:","#ffab4040"); if(c) fmt("hiliteColor",c); }, "Highlight")}
+        <div style={{ flex:1 }}/>
+        <span style={{ fontSize:10, color:"var(--t3)" }}>Ctrl+V to paste images · drag to reposition · drag edge to resize</span>
+      </div>
+
+      {/* Editable area */}
+      <div style={{ flex:1, overflowY:"auto", padding:"24px 32px", background:"#13151f" }}>
+        {/* Fake doc page */}
+        <div style={{ maxWidth:760, margin:"0 auto", background:"#1c1f2e", borderRadius:8, minHeight:600, padding:"40px 48px", boxShadow:"0 4px 32px rgba(0,0,0,0.4)", position:"relative" }}
+          tabIndex={-1} onKeyDown={onKeyDown}>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={commit}
+            onPaste={onPaste}
+            onClick={onEditorClick}
+            onCompositionStart={()=>isComposing.current=true}
+            onCompositionEnd={()=>{ isComposing.current=false; commit(); }}
+            className="docs-editor"
+            style={{
+              minHeight: 520,
+              outline:"none",
+              color:"var(--t1)",
+              fontSize:14,
+              lineHeight:1.9,
+              fontFamily:"'Barlow',sans-serif",
+              caretColor:"var(--acc)",
+            }}
+          />
+          {/* Image overlay controls when image selected */}
+          {selImg && (() => {
+            const img = editorRef.current?.querySelector(`img[data-imgid="${selImg}"]`);
+            if (!img) return null;
+            const rect = img.getBoundingClientRect();
+            const containerRect = editorRef.current.closest("[tabindex]").getBoundingClientRect();
+            const top = rect.top - containerRect.top;
+            const left = rect.left - containerRect.left;
+            const w = rect.width;
+            const h = rect.height;
+            return (
+              <div style={{ position:"absolute", top, left, width:w, height:h, pointerEvents:"none", zIndex:20 }}>
+                {/* Drag handle top */}
+                <div title="Drag to move" onMouseDown={e=>startDrag(e,selImg)} style={{ position:"absolute", top:-1, left:"50%", transform:"translateX(-50%)", width:40, height:14, background:"var(--acc)", borderRadius:"4px 4px 0 0", cursor:"move", pointerEvents:"all", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <span style={{ fontSize:9, color:"#080a10", fontWeight:900, letterSpacing:1 }}>⠿</span>
+                </div>
+                {/* Left resize */}
+                <div onMouseDown={e=>startResize(e,selImg,"left")} style={{ position:"absolute", left:-5, top:"50%", transform:"translateY(-50%)", width:10, height:32, background:"var(--acc)", borderRadius:3, cursor:"ew-resize", pointerEvents:"all" }}/>
+                {/* Right resize */}
+                <div onMouseDown={e=>startResize(e,selImg,"right")} style={{ position:"absolute", right:-5, top:"50%", transform:"translateY(-50%)", width:10, height:32, background:"var(--acc)", borderRadius:3, cursor:"ew-resize", pointerEvents:"all" }}/>
+                {/* Delete */}
+                <div onClick={()=>{ img.remove(); setSelImg(null); commit(); }} style={{ position:"absolute", top:-1, right:-1, width:20, height:20, background:"#ff5252", borderRadius:"0 4px 0 4px", cursor:"pointer", pointerEvents:"all", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <span style={{ fontSize:12, color:"#fff", lineHeight:1 }}>×</span>
+                </div>
+                {/* Size badge */}
+                <div style={{ position:"absolute", bottom:-18, left:"50%", transform:"translateX(-50%)", fontSize:9, background:"var(--acc)", color:"#080a10", padding:"1px 7px", borderRadius:3, whiteSpace:"nowrap", fontFamily:"monospace", fontWeight:700 }}>
+                  {Math.round(w)}px · drag edges to resize
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
     </div>
   );
 }
@@ -872,86 +1085,48 @@ function GamePlans() {
   const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
   const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
 
-  const [docs, setDocsRaw]    = useState(load);
-  const [sel, setSel]         = useState(null);
-  const [modal, setModal]     = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [docs, setDocsRaw] = useState(load);
+  const [sel, setSel]      = useState(null);
+  const [modal, setModal]  = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
-  const [form, setForm]       = useState({ title:"", opp:"", maps:[], side:"atk", body:"" });
-  const [editBody, setEditBody] = useState("");
-  const [editImages, setEditImages] = useState([]);
+  const [form, setForm]    = useState({ title:"", opp:"", maps:[], side:"atk" });
+  const [docContent, setDocContent] = useState({ html:"", images:[] }); // live editor state
 
   const setDocs = (fn) => setDocsRaw(prev => {
     const next = typeof fn === "function" ? fn(prev) : fn;
     save(next); return next;
   });
 
-  // Keep sel fresh
-  React.useEffect(()=>{ if(sel) setSel(docs.find(d=>d.id===sel.id)||null); }, [docs]);
+  React.useEffect(()=>{
+    if(sel) {
+      const fresh = docs.find(d=>d.id===sel.id);
+      if (fresh) setSel(fresh);
+    }
+  }, [docs]);
+
+  // When switching docs, load content into editor
+  React.useEffect(()=>{
+    if (sel) setDocContent(sel.content || { html: sel.body||"", images:[] });
+    else setDocContent({ html:"", images:[] });
+  }, [sel?.id]);
+
+  const saveContent = (content) => {
+    setDocContent(content);
+    if (!sel) return;
+    const updated = { ...sel, content };
+    setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
+    setSel(updated);
+  };
 
   const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
 
   const create = () => {
     if(!form.title.trim()) return;
-    const d = { id:Date.now(), ...form, date: new Date().toLocaleDateString() };
+    const d = { id:Date.now(), ...form, date: new Date().toLocaleDateString(), content:{ html:"", images:[] } };
     setDocs(p=>[...p, d]);
     setSel(d);
     setModal(false);
-    setForm({ title:"", opp:"", maps:[], side:"atk", body:"" });
-  };
-
-  const editorRef = React.useRef(null);
-
-  const saveEdit = () => {
-    const updated = { ...sel, body: editBody, images: editImages };
-    setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
-    setSel(updated);
-    setEditing(false);
-  };
-
-  const startEdit = () => {
-    setEditBody(sel.body||"");
-    setEditImages(sel.images||[]);
-    setEditing(true);
-  };
-
-  const handlePaste = (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const tag = `[img:${Date.now()}]`;
-          setEditImages(imgs => [...imgs, { tag, src: ev.target.result }]);
-          setEditBody(b => b + `\n${tag}\n`);
-        };
-        reader.readAsDataURL(file);
-        return;
-      }
-    }
-  };
-
-  const renderBody = (body, images) => {
-    if (!body && !(images?.length)) return null;
-    const imgs = images || [];
-    const parts = (body||"").split(/(\[img:\d+\])/g);
-    return parts.map((part, i) => {
-      const img = imgs.find(im => im.tag === part);
-      if (img) return <ResizableImage key={i} src={img.src} tag={img.tag} images={imgs} onResize={(tag, w) => {
-        const updated = { ...sel, images: imgs.map(im => im.tag===tag ? {...im, width:w} : im) };
-        setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
-        setSel(updated);
-      }}/>;
-      return part ? <span key={i} style={{ whiteSpace:"pre-wrap" }}>{part}</span> : null;
-    });
-  };
-
-  // Also update editImages widths on resize while editing
-  const handleEditResize = (tag, w) => {
-    setEditImages(imgs => imgs.map(im => im.tag===tag ? {...im, width:w} : im));
+    setForm({ title:"", opp:"", maps:[], side:"atk" });
   };
 
   const deleteDoc = (id) => {
@@ -961,16 +1136,17 @@ function GamePlans() {
   };
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
+    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
+      {/* Sidebar */}
       <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
         <div className="label-sm" style={{ marginBottom:8 }}>Game Plans</div>
         <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
           {docs.map(d=>(
             <div key={d.id} style={{ position:"relative" }}>
-              <div onClick={()=>{ setSel(d); setEditing(false); }} style={{ padding:"11px 13px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
+              <div onClick={()=>setSel(d)} style={{ padding:"11px 13px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
                 <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{d.title}</div>
                 <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                  {d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
+                  {d.maps?.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
                   {d.opp && <span className="chip chip-purple">vs {d.opp}</span>}
                 </div>
                 <div style={{ fontSize:11, color:"var(--t3)", marginTop:3 }}>{d.date}</div>
@@ -982,72 +1158,28 @@ function GamePlans() {
         <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={()=>setModal(true)}>+ New Game Plan</button>
       </div>
 
+      {/* Editor area */}
       {sel ? (
-        <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:0, minHeight:0, overflow:"hidden" }}>
+          {/* Doc header */}
+          <div style={{ padding:"12px 16px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", borderRadius:"var(--r2) var(--r2) 0 0", border:"1px solid var(--b1)", marginBottom:0 }}>
             <div>
-              <div className="bc" style={{ fontSize:22, fontWeight:700 }}>{sel.title}</div>
-              <div style={{ display:"flex", gap:6, marginTop:4, alignItems:"center" }}>
-                {sel.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
-                <span className={`chip ${sel.side==="atk"?"chip-acc":"chip-blue"}`}>{sel.side==="atk"?"ATTACK":"DEFENSE"}</span>
+              <div className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.title}</div>
+              <div style={{ display:"flex", gap:6, marginTop:3, alignItems:"center" }}>
+                {sel.maps?.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
+                {sel.side && <span className={`chip ${sel.side==="atk"?"chip-acc":"chip-blue"}`}>{sel.side==="atk"?"ATTACK":"DEFENSE"}</span>}
                 {sel.opp && <span style={{ color:"var(--t3)", fontSize:12 }}>vs {sel.opp}</span>}
                 <span style={{ color:"var(--t3)", fontSize:11 }}>· {sel.date}</span>
               </div>
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              {editing ? (
-                <>
-                  <button className="btn btn-acc" style={{ fontSize:12 }} onClick={saveEdit}>✓ Save</button>
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={()=>setEditing(false)}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <button className="btn btn-sub" style={{ fontSize:12 }} onClick={startEdit}>✎ Edit</button>
-                  <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
-                </>
-              )}
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <span style={{ fontSize:11, color:"var(--green)" }}>✓ Auto-saving</span>
+              <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
             </div>
           </div>
-          <div style={{ flex:1, padding:"16px 18px", overflowY:"auto" }}>
-            {editing ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:10, height:"100%" }}>
-                <div style={{ fontSize:11, color:"var(--t3)", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", padding:"8px 12px" }}>
-                  💡 Type your notes below. <strong style={{ color:"var(--acc)" }}>Paste images directly</strong> (Ctrl+V) — they'll be embedded and saved automatically.
-                </div>
-                <textarea
-                  ref={editorRef}
-                  value={editBody}
-                  onChange={e=>setEditBody(e.target.value)}
-                  onPaste={handlePaste}
-                  style={{ flex:1, width:"100%", minHeight:360, background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", padding:"12px", fontSize:13, lineHeight:1.8, resize:"vertical", fontFamily:"'Barlow',sans-serif" }}
-                  placeholder="Write your game plan notes here. Paste screenshots with Ctrl+V — opponent tendencies, map strategies, setups..."/>
-                {editImages.length > 0 && (
-                  <div>
-                    <div className="label-sm" style={{ marginBottom:8 }}>Pasted Images — click to resize, × to remove</div>
-                    <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
-                      {editImages.map((img,i)=>(
-                        <div key={img.tag} style={{ position:"relative" }}>
-                          <ResizableImage src={img.src} tag={img.tag} images={editImages} onResize={handleEditResize}/>
-                          <button onClick={()=>{ setEditImages(imgs=>imgs.filter(x=>x.tag!==img.tag)); setEditBody(b=>b.replace(`\n${img.tag}\n`,"")); }}
-                            style={{ position:"absolute", top:-8, right:-8, background:"var(--red)", border:"none", color:"#fff", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:10 }}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              sel.body || sel.images?.length ? (
-                <div style={{ color:"var(--t2)", lineHeight:1.9, fontSize:13 }}>
-                  {renderBody(sel.body, sel.images)}
-                </div>
-              ) : (
-                <div style={{ textAlign:"center", marginTop:40, color:"var(--t3)" }}>
-                  <div style={{ fontSize:22, marginBottom:8 }}>📝</div>
-                  <div>No notes yet — click Edit to add your game plan</div>
-                </div>
-              )
-            )}
+          {/* Docs editor fills remaining height */}
+          <div style={{ flex:1, minHeight:0, borderRadius:"0 0 var(--r2) var(--r2)", overflow:"hidden" }}>
+            <DocsEditor value={docContent} onChange={saveContent}/>
           </div>
         </div>
       ) : (
@@ -1078,7 +1210,6 @@ function GamePlans() {
                 <option value="atk">Attack</option><option value="def">Defense</option><option value="both">Both</option>
               </select>
             </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Initial Notes (optional)</div><textarea rows={4} style={{ resize:"vertical" }} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="Opponent tendencies, key players, map strategies..."/></div>
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create}>Create Game Plan</button>
               <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
