@@ -696,12 +696,16 @@ function Playbooks() {
   const handleUpload = (e) => {
     const file = e.target.files[0];
     if (!file || file.type !== "application/pdf") return;
-    const url = URL.createObjectURL(file);
-    const nb = { id: Date.now(), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: url, fileName: file.name };
-    setPbs(prev => [...prev, nb]);
-    setSel(nb);
-    setModal(false);
-    setForm({ name:"", map:"Ascent", desc:"" });
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result; // data:application/pdf;base64,...
+      const nb = { id: Date.now(), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: base64, fileName: file.name };
+      setPbs(prev => [...prev, nb]);
+      setSel(nb);
+      setModal(false);
+      setForm({ name:"", map:"Ascent", desc:"" });
+    };
+    reader.readAsDataURL(file);
     e.target.value = "";
   };
 
@@ -800,6 +804,7 @@ function GamePlans() {
   const [delConfirm, setDelConfirm] = useState(null);
   const [form, setForm]       = useState({ title:"", opp:"", maps:[], side:"atk", body:"" });
   const [editBody, setEditBody] = useState("");
+  const [editImages, setEditImages] = useState([]);
 
   const setDocs = (fn) => setDocsRaw(prev => {
     const next = typeof fn === "function" ? fn(prev) : fn;
@@ -820,11 +825,49 @@ function GamePlans() {
     setForm({ title:"", opp:"", maps:[], side:"atk", body:"" });
   };
 
+  const editorRef = React.useRef(null);
+
   const saveEdit = () => {
-    const updated = { ...sel, body: editBody };
+    const updated = { ...sel, body: editBody, images: editImages };
     setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
     setSel(updated);
     setEditing(false);
+  };
+
+  const startEdit = () => {
+    setEditBody(sel.body||"");
+    setEditImages(sel.images||[]);
+    setEditing(true);
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const tag = `[img:${Date.now()}]`;
+          setEditImages(imgs => [...imgs, { tag, src: ev.target.result }]);
+          setEditBody(b => b + `\n${tag}\n`);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
+
+  const renderBody = (body, images) => {
+    if (!body) return null;
+    const imgs = images || [];
+    const parts = body.split(/(\[img:\d+\])/g);
+    return parts.map((part, i) => {
+      const img = imgs.find(im => im.tag === part);
+      if (img) return <img key={i} src={img.src} style={{ maxWidth:"100%", borderRadius:"var(--r)", margin:"8px 0", border:"1px solid var(--b2)", display:"block" }} alt="pasted"/>;
+      return part ? <span key={i} style={{ whiteSpace:"pre-wrap" }}>{part}</span> : null;
+    });
   };
 
   const deleteDoc = (id) => {
@@ -875,7 +918,7 @@ function GamePlans() {
                 </>
               ) : (
                 <>
-                  <button className="btn btn-sub" style={{ fontSize:12 }} onClick={()=>{ setEditBody(sel.body); setEditing(true); }}>✎ Edit</button>
+                  <button className="btn btn-sub" style={{ fontSize:12 }} onClick={startEdit}>✎ Edit</button>
                   <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
                 </>
               )}
@@ -883,12 +926,37 @@ function GamePlans() {
           </div>
           <div style={{ flex:1, padding:"16px 18px", overflowY:"auto" }}>
             {editing ? (
-              <textarea value={editBody} onChange={e=>setEditBody(e.target.value)}
-                style={{ width:"100%", height:"100%", minHeight:400, background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", padding:"12px", fontSize:13, lineHeight:1.8, resize:"vertical" }}
-                placeholder="Write your game plan notes here — opponent tendencies, map strategies, economic patterns, player assignments..."/>
+              <div style={{ display:"flex", flexDirection:"column", gap:10, height:"100%" }}>
+                <div style={{ fontSize:11, color:"var(--t3)", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", padding:"8px 12px" }}>
+                  💡 Type your notes below. <strong style={{ color:"var(--acc)" }}>Paste images directly</strong> (Ctrl+V) — they'll be embedded and saved automatically.
+                </div>
+                <textarea
+                  ref={editorRef}
+                  value={editBody}
+                  onChange={e=>setEditBody(e.target.value)}
+                  onPaste={handlePaste}
+                  style={{ flex:1, width:"100%", minHeight:360, background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", padding:"12px", fontSize:13, lineHeight:1.8, resize:"vertical", fontFamily:"'Barlow',sans-serif" }}
+                  placeholder="Write your game plan notes here. Paste screenshots with Ctrl+V — opponent tendencies, map strategies, setups..."/>
+                {editImages.length > 0 && (
+                  <div>
+                    <div className="label-sm" style={{ marginBottom:8 }}>Pasted Images ({editImages.length})</div>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      {editImages.map((img,i)=>(
+                        <div key={img.tag} style={{ position:"relative" }}>
+                          <img src={img.src} style={{ width:80, height:60, objectFit:"cover", borderRadius:"var(--r)", border:"1px solid var(--b2)" }} alt={`img ${i+1}`}/>
+                          <button onClick={()=>{ setEditImages(imgs=>imgs.filter(x=>x.tag!==img.tag)); setEditBody(b=>b.replace(`\n${img.tag}\n`,"")); }}
+                            style={{ position:"absolute", top:-6, right:-6, background:"var(--red)", border:"none", color:"#fff", borderRadius:"50%", width:16, height:16, fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
-              sel.body ? (
-                <p style={{ color:"var(--t2)", lineHeight:1.9, fontSize:13, whiteSpace:"pre-wrap" }}>{sel.body}</p>
+              sel.body || sel.images?.length ? (
+                <div style={{ color:"var(--t2)", lineHeight:1.9, fontSize:13 }}>
+                  {renderBody(sel.body, sel.images)}
+                </div>
               ) : (
                 <div style={{ textAlign:"center", marginTop:40, color:"var(--t3)" }}>
                   <div style={{ fontSize:22, marginBottom:8 }}>📝</div>
@@ -1509,18 +1577,15 @@ function VodReview() {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"10px 16px", flexShrink:0 }}>
               <span className="bc" style={{ fontSize:18, fontWeight:700 }}>{sel.title}</span>
               <div style={{ display:"flex", gap:8 }}>
-                <button className="btn btn-sub" style={{ fontSize:11 }} onClick={()=>setShowAnnotate(a=>!a)}>
-                  {showAnnotate ? "✕ Close Annotate" : "✏️ Annotate"}
-                </button>
                 <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
                 <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>setDeleteConfirm({type:"vod",id:sel.id,label:sel.title})}>🗑 Delete</button>
               </div>
             </div>
 
-            {/* Video — fixed height, not aspect-ratio driven */}
-            <div style={{ display:"grid", gridTemplateColumns: showAnnotate ? "1fr 1fr" : "1fr", gap:10, flexShrink:0 }}>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden", height:300 }}>
+            {/* Video — 16:9 */}
+            <div style={{ flexShrink:0 }}>
+              <div style={{ position:"relative", width:"100%", paddingTop:"56.25%", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden" }}>
+                <div style={{ position:"absolute", inset:0 }}>
                   {embedUrl
                     ? <iframe key={selTs ? `ts-${selTs.id}` : embedUrl}
                         src={selTs ? (tsEmbedUrl(selTs)||embedUrl) : embedUrl}
@@ -1534,27 +1599,12 @@ function VodReview() {
                       </div>
                   }
                 </div>
-                <div style={{ display:"flex", gap:8 }}>
-                  <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
-                    onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }} style={{ flex:1 }}/>
-                  <button className="btn btn-sub" onClick={applyUrl}>Load</button>
-                </div>
               </div>
-
-              {showAnnotate && (
-                <div style={{ background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", height:340 }}>
-                  <div style={{ padding:"8px 14px", borderBottom:"1px solid var(--b1)", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:"var(--acc)" }}>✏️ ANNOTATION CANVAS</span>
-                    {selTs
-                      ? <span style={{ fontSize:11, color:"var(--t2)" }}>On: <strong style={{ color:"var(--t1)" }}>{selTs.time} — {selTs.label}</strong></span>
-                      : <span style={{ fontSize:11, color:"var(--t3)" }}>Select a timestamp to save drawings</span>
-                    }
-                  </div>
-                  <div style={{ flex:1, minHeight:0 }}>
-                    <DrawCanvas strokes={selTs?.strokes||[]} onStrokes={s=>{ if(selTs) updateStrokes(selTs.id,s); }}/>
-                  </div>
-                </div>
-              )}
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
+                  onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }} style={{ flex:1 }}/>
+                <button className="btn btn-sub" onClick={applyUrl}>Load</button>
+              </div>
             </div>
 
             {/* Timestamps + Notes panel */}
@@ -1593,35 +1643,21 @@ function VodReview() {
               {/* Notes / Draw panel */}
               {selTs ? (
                 <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"0 14px", alignItems:"center", gap:4, flexShrink:0 }}>
-                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:12, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700, marginRight:6 }}>{selTs.time}</span>
+                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"12px 14px", alignItems:"center", gap:8, flexShrink:0 }}>
+                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:12, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700 }}>{selTs.time}</span>
                     <span style={{ fontSize:13, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
-                    <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30`, marginRight:8 }}>{selTs.cat}</span>
-                    {["notes","draw"].map(tab=>(
-                      <button key={tab} onClick={()=>setActiveTab(tab)}
-                        style={{ padding:"10px 16px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab?"var(--acc)":"transparent"}`,
-                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:700, letterSpacing:"0.05em", transition:"all 0.15s" }}>
-                        {tab==="notes"?"📝 NOTES":"✏️ DRAW"}
-                      </button>
-                    ))}
+                    <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30` }}>{selTs.cat}</span>
                   </div>
-                  {activeTab==="notes" && (
-                    <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
-                      <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
-                        placeholder="Add your observations, callouts, feedback for this moment..."
-                        style={{ flex:1, resize:"none", minHeight:180, lineHeight:1.75, padding:12, fontSize:13,
-                          background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
-                      <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
-                        <span style={{ fontSize:11, color:"var(--green)" }}>✓ Saved automatically</span>
-                      </div>
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
+                    <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
+                      placeholder="Add your observations, callouts, feedback for this moment..."
+                      style={{ flex:1, resize:"none", minHeight:180, lineHeight:1.75, padding:12, fontSize:13,
+                        background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
+                      <span style={{ fontSize:11, color:"var(--green)" }}>✓ Saved automatically</span>
                     </div>
-                  )}
-                  {activeTab==="draw" && (
-                    <div style={{ flex:1, overflow:"hidden", minHeight:240 }}>
-                      <DrawCanvas strokes={selTs.strokes||[]} onStrokes={s=>updateStrokes(selTs.id,s)}/>
-                    </div>
-                  )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", display:"flex", alignItems:"center", justifyContent:"center", minHeight:300 }}>
