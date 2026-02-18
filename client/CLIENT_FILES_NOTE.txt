@@ -1,0 +1,14 @@
+# Client Files
+
+**IMPORTANT**: Copy your existing client files here!
+
+Your existing project should have:
+- `index.html`
+- `package.json`
+- `vite.config.js`
+- `src/App.jsx`
+- `src/main.jsx`
+
+Copy all of these from your current `bztracker` or `ticra` folder into this `client` directory.
+
+The only thing that changed is the backend - your frontend code stays the same. Just make sure the API calls in `App.jsx` point to `import.meta.env.VITE_API_URL` which will be set as an environment variable on Render.
