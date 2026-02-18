@@ -1101,34 +1101,32 @@ function fmt(secs) {
   return `${m}:${String(s).padStart(2,"0")}`;
 }
 
-/* ─ Drawing canvas ─ */
+/* ─ Annotation Canvas (overlay on video) ─ */
 const DRAW_COLORS = ["#d4ff1e","#ff5252","#4fc3f7","#69f0ae","#ffab40","#b39ddb","#ffffff"];
-const DRAW_SIZES  = [2,5,10,18];
-const DRAW_TOOLS  = ["pen","line","rect","circle","arrow","eraser"];
+const DRAW_SIZES  = [2,4,8,14];
+const DRAW_TOOLS  = ["pen","arrow","line","rect","circle","text","eraser"];
+const TOOL_ICONS  = { pen:"✏️", arrow:"➜", line:"╱", rect:"▭", circle:"◯", text:"T", eraser:"⌫" };
 
 function DrawCanvas({ strokes, onStrokes }) {
-  const [tool,setTool]   = useState("pen");
-  const [color,setColor] = useState(DRAW_COLORS[0]);
-  const [size,setSize]   = useState(DRAW_SIZES[1]);
-  const cvs  = useState(null);
-  const canv = { current: null };
-  const canvRef = { current: null };
-
-  // use a real ref
-  const realRef = React.useRef(null);
-  const drawing = React.useRef(false);
-  const cur     = React.useRef(null);
+  const [tool,setTool]         = useState("pen");
+  const [color,setColor]       = useState(DRAW_COLORS[0]);
+  const [size,setSize]         = useState(DRAW_SIZES[1]);
+  const [textInput,setTextInput] = useState("");
+  const [textPos,setTextPos]   = useState(null);
+  const realRef  = React.useRef(null);
+  const drawing  = React.useRef(false);
+  const cur      = React.useRef(null);
 
   const getPos = (e) => {
     const rect = realRef.current.getBoundingClientRect();
-    const cx = (e.touches?e.touches[0].clientX:e.clientX);
-    const cy = (e.touches?e.touches[0].clientY:e.clientY);
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
     return { x:(cx-rect.left)*(realRef.current.width/rect.width), y:(cy-rect.top)*(realRef.current.height/rect.height) };
   };
 
   const paint = (ctx, s) => {
     ctx.save();
-    ctx.strokeStyle = s.tool==="eraser" ? "#000" : s.color;
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
     ctx.lineWidth   = s.size;
     ctx.lineCap = ctx.lineJoin = "round";
     ctx.globalCompositeOperation = s.tool==="eraser" ? "destination-out" : "source-over";
@@ -1137,16 +1135,24 @@ function DrawCanvas({ strokes, onStrokes }) {
     } else if (s.tool==="line") {
       ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
     } else if (s.tool==="rect") {
-      ctx.beginPath(); ctx.strokeRect(s.x1,s.y1,s.x2-s.x1,s.y2-s.y1);
+      ctx.strokeRect(s.x1,s.y1,s.x2-s.x1,s.y2-s.y1);
     } else if (s.tool==="circle") {
       const rx=Math.abs(s.x2-s.x1)/2, ry=Math.abs(s.y2-s.y1)/2;
       ctx.beginPath(); ctx.ellipse((s.x1+s.x2)/2,(s.y1+s.y2)/2,rx,ry,0,0,Math.PI*2); ctx.stroke();
     } else if (s.tool==="arrow") {
-      const dx=s.x2-s.x1, dy=s.y2-s.y1, ang=Math.atan2(dy,dx), hl=Math.min(20,Math.sqrt(dx*dx+dy*dy)*0.3);
-      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2);
-      ctx.lineTo(s.x2-hl*Math.cos(ang-0.4),s.y2-hl*Math.sin(ang-0.4));
-      ctx.moveTo(s.x2,s.y2); ctx.lineTo(s.x2-hl*Math.cos(ang+0.4),s.y2-hl*Math.sin(ang+0.4));
+      const dx=s.x2-s.x1, dy=s.y2-s.y1, ang=Math.atan2(dy,dx);
+      const hl = Math.min(28, Math.sqrt(dx*dx+dy*dy)*0.35);
+      ctx.beginPath();
+      ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2);
+      ctx.lineTo(s.x2-hl*Math.cos(ang-0.45),s.y2-hl*Math.sin(ang-0.45));
+      ctx.moveTo(s.x2,s.y2);
+      ctx.lineTo(s.x2-hl*Math.cos(ang+0.45),s.y2-hl*Math.sin(ang+0.45));
       ctx.stroke();
+    } else if (s.tool==="text") {
+      const fs = Math.max(14, s.size*3);
+      ctx.font = `bold ${fs}px 'Barlow Condensed', sans-serif`;
+      ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 4;
+      ctx.fillText(s.text, s.x1, s.y1);
     }
     ctx.restore();
   };
@@ -1160,6 +1166,7 @@ function DrawCanvas({ strokes, onStrokes }) {
   React.useEffect(()=>{ redraw(strokes); }, [strokes]);
 
   const onDown = (e) => {
+    if(tool==="text") return; // text is handled on click
     e.preventDefault(); drawing.current=true;
     const p=getPos(e);
     cur.current = (tool==="pen"||tool==="eraser") ? {tool,color,size,pts:[p]} : {tool,color,size,x1:p.x,y1:p.y,x2:p.x,y2:p.y};
@@ -1178,58 +1185,104 @@ function DrawCanvas({ strokes, onStrokes }) {
     onStrokes([...strokes, cur.current]);
     cur.current=null;
   };
+  const onClick = (e) => {
+    if(tool!=="text") return;
+    const p=getPos(e);
+    setTextPos(p);
+    setTextInput("");
+  };
+  const commitText = () => {
+    if(!textInput.trim()||!textPos) return;
+    onStrokes([...strokes, { tool:"text", color, size, x1:textPos.x, y1:textPos.y, text:textInput.trim() }]);
+    setTextPos(null); setTextInput("");
+  };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", gap:0 }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:"#050709" }}>
       {/* Toolbar */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"var(--s2)", borderBottom:"1px solid var(--b1)", flexWrap:"wrap" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"rgba(13,16,24,0.95)", borderBottom:"1px solid var(--b1)", flexWrap:"wrap" }}>
         {/* Tools */}
-        <div style={{ display:"flex", gap:4 }}>
+        <div style={{ display:"flex", gap:3 }}>
           {DRAW_TOOLS.map(t=>(
-            <button key={t} onClick={()=>setTool(t)} title={t} style={{ width:30, height:30, borderRadius:"var(--r)", border:`1px solid ${tool===t?"var(--acc)":"var(--b2)"}`,
-              background:tool===t?"rgba(212,255,30,0.12)":"var(--s3)", color:tool===t?"var(--acc)":"var(--t2)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
-              {t==="pen"?"✏":t==="line"?"╱":t==="rect"?"▭":t==="circle"?"◯":t==="arrow"?"→":"⌫"}
+            <button key={t} onClick={()=>{ setTool(t); setTextPos(null); }} title={t}
+              style={{ width:32, height:32, borderRadius:"var(--r)", border:`1px solid ${tool===t?"var(--acc)":"var(--b2)"}`,
+                background:tool===t?"rgba(212,255,30,0.15)":"var(--s2)", color:tool===t?"var(--acc)":"var(--t2)",
+                fontSize:t==="text"?13:12, fontWeight:700, cursor:"pointer", transition:"all 0.1s" }}>
+              {TOOL_ICONS[t]}
             </button>
           ))}
         </div>
-        <div style={{ width:1, height:20, background:"var(--b2)" }}/>
+
+        <div style={{ width:1, height:22, background:"var(--b2)" }}/>
+
         {/* Colors */}
         <div style={{ display:"flex", gap:4 }}>
           {DRAW_COLORS.map(c=>(
-            <button key={c} onClick={()=>setColor(c)} style={{ width:20, height:20, borderRadius:4, background:c,
-              border:`2px solid ${color===c?"#fff":"transparent"}`, cursor:"pointer" }}/>
+            <button key={c} onClick={()=>setColor(c)}
+              style={{ width:22, height:22, borderRadius:4, background:c,
+                border:`2px solid ${color===c?"#fff":"transparent"}`,
+                boxShadow:color===c?`0 0 0 1px ${c}`:"none", cursor:"pointer", transition:"all 0.1s" }}/>
           ))}
         </div>
-        <div style={{ width:1, height:20, background:"var(--b2)" }}/>
-        {/* Sizes */}
-        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+
+        <div style={{ width:1, height:22, background:"var(--b2)" }}/>
+
+        {/* Stroke size */}
+        <div style={{ display:"flex", gap:5, alignItems:"center" }}>
           {DRAW_SIZES.map(s=>(
-            <button key={s} onClick={()=>setSize(s)} style={{ width:s===2?16:s===5?20:s===10?24:28, height:s===2?16:s===5?20:s===10?24:28,
-              borderRadius:"50%", background:size===s?"var(--acc)":"var(--s3)", border:`1px solid ${size===s?"var(--acc)":"var(--b2)"}`, cursor:"pointer" }}/>
+            <button key={s} onClick={()=>setSize(s)}
+              style={{ width:s===2?14:s===4?18:s===8?22:26, height:s===2?14:s===4?18:s===8?22:26,
+                borderRadius:"50%", background:size===s?"var(--acc)":"var(--s3)",
+                border:`1px solid ${size===s?"var(--acc)":"var(--b2)"}`, cursor:"pointer", transition:"all 0.1s" }}/>
           ))}
         </div>
+
         <div style={{ flex:1 }}/>
-        <button onClick={()=>onStrokes([])} style={{ background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"4px 12px", fontSize:11, cursor:"pointer" }}>
-          Clear
-        </button>
-        {strokes.length>0 && (
-          <button onClick={()=>onStrokes(strokes.slice(0,-1))} style={{ background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"4px 12px", fontSize:11, cursor:"pointer" }}>
-            Undo
+
+        <div style={{ display:"flex", gap:6 }}>
+          {strokes.length>0 && (
+            <button onClick={()=>onStrokes(strokes.slice(0,-1))}
+              style={{ background:"var(--s2)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"5px 12px", fontSize:11, cursor:"pointer" }}>
+              ↩ Undo
+            </button>
+          )}
+          <button onClick={()=>{ onStrokes([]); setTextPos(null); }}
+            style={{ background:"rgba(255,82,82,0.1)", border:"1px solid rgba(255,82,82,0.25)", color:"var(--red)", borderRadius:"var(--r)", padding:"5px 12px", fontSize:11, cursor:"pointer" }}>
+            Clear All
           </button>
-        )}
+        </div>
       </div>
-      {/* Canvas */}
-      <div style={{ flex:1, position:"relative", background:"#0a0c10", overflow:"hidden" }}>
+
+      {/* Canvas area */}
+      <div style={{ flex:1, position:"relative", overflow:"hidden" }}>
         <canvas ref={realRef} width={1280} height={720}
           onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
           onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-          style={{ width:"100%", height:"100%", cursor:tool==="eraser"?"cell":"crosshair", touchAction:"none", display:"block" }}
+          onClick={onClick}
+          style={{ width:"100%", height:"100%", cursor:tool==="eraser"?"cell":tool==="text"?"text":"crosshair", touchAction:"none", display:"block" }}
         />
-        {strokes.length===0 && (
+
+        {/* Text input popup */}
+        {textPos && (
+          <div style={{ position:"absolute", top:"40%", left:"50%", transform:"translate(-50%,-50%)", zIndex:10,
+            background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:"var(--r2)", padding:"14px 16px", minWidth:260, boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
+            <div className="label-sm" style={{ marginBottom:8, color:"var(--acc)" }}>Add Text Label</div>
+            <input autoFocus type="text" value={textInput} onChange={e=>setTextInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") commitText(); if(e.key==="Escape") setTextPos(null); }}
+              placeholder="Type label..." style={{ marginBottom:10 }}/>
+            <div style={{ display:"flex", gap:6 }}>
+              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center", fontSize:12 }} onClick={commitText}>Place</button>
+              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={()=>setTextPos(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {strokes.length===0 && !textPos && (
           <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
-            <div style={{ color:"var(--t3)", fontSize:12, textAlign:"center" }}>
-              <div style={{ fontSize:28, marginBottom:6 }}>✏</div>
-              <div>Draw annotations on this frame</div>
+            <div style={{ color:"var(--t3)", fontSize:12, textAlign:"center", background:"rgba(0,0,0,0.5)", padding:"16px 24px", borderRadius:"var(--r2)" }}>
+              <div style={{ fontSize:28, marginBottom:6 }}>✏️</div>
+              <div style={{ fontWeight:600, marginBottom:4 }}>Annotation Canvas</div>
+              <div style={{ fontSize:11, color:"var(--t3)" }}>Draw over this frame using the tools above</div>
             </div>
           </div>
         )}
