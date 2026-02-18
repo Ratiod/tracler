@@ -1461,8 +1461,8 @@ function VodReview() {
   };
 
   return (
-    <div style={{ padding:"28px 32px", height:"calc(100vh - 60px)", display:"flex", flexDirection:"column" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+    <div style={{ padding:"28px 32px 0", height:"calc(100vh - 60px)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <div>
           <div className="bc" style={{ fontSize:38, fontWeight:900, letterSpacing:"0.04em" }}>VOD REVIEW</div>
           <div style={{ color:"var(--t2)", fontSize:13, marginTop:2 }}>Annotate and discuss recordings with your team</div>
@@ -1470,7 +1470,7 @@ function VodReview() {
         <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"210px 1fr", gap:18, flex:1, minHeight:0 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"210px 1fr", gap:18, flex:1, minHeight:0, overflow:"hidden" }}>
         {/* Sidebar */}
         <div style={{ display:"flex", flexDirection:"column", overflowY:"auto" }}>
           <div className="label-sm" style={{ marginBottom:8 }}>Folders</div>
@@ -1503,13 +1503,24 @@ function VodReview() {
 
         {/* Main area */}
         {sel ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:12, minWidth:0, minHeight:0, overflow:"hidden" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:10, minWidth:0, minHeight:0, overflowY:"auto", paddingBottom:20 }}>
 
-            {/* Top row: video + annotation side by side */}
-            <div style={{ display:"grid", gridTemplateColumns: showAnnotate ? "1fr 1fr" : "1fr", gap:12, minHeight:0 }}>
-              {/* Video */}
+            {/* Title + action bar */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"10px 16px", flexShrink:0 }}>
+              <span className="bc" style={{ fontSize:18, fontWeight:700 }}>{sel.title}</span>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-sub" style={{ fontSize:11 }} onClick={()=>setShowAnnotate(a=>!a)}>
+                  {showAnnotate ? "✕ Close Annotate" : "✏️ Annotate"}
+                </button>
+                <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
+                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>setDeleteConfirm({type:"vod",id:sel.id,label:sel.title})}>🗑 Delete</button>
+              </div>
+            </div>
+
+            {/* Video — fixed height, not aspect-ratio driven */}
+            <div style={{ display:"grid", gridTemplateColumns: showAnnotate ? "1fr 1fr" : "1fr", gap:10, flexShrink:0 }}>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                <div style={{ position:"relative", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden", aspectRatio:"16/9" }}>
+                <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden", height:300 }}>
                   {embedUrl
                     ? <iframe key={selTs ? `ts-${selTs.id}` : embedUrl}
                         src={selTs ? (tsEmbedUrl(selTs)||embedUrl) : embedUrl}
@@ -1523,7 +1534,6 @@ function VodReview() {
                       </div>
                   }
                 </div>
-                {/* URL bar */}
                 <div style={{ display:"flex", gap:8 }}>
                   <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
                     onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }} style={{ flex:1 }}/>
@@ -1531,14 +1541,13 @@ function VodReview() {
                 </div>
               </div>
 
-              {/* Annotation panel — shown side by side with video */}
               {showAnnotate && (
-                <div style={{ background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", minHeight:200 }}>
-                  <div style={{ padding:"8px 14px", borderBottom:"1px solid var(--b1)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", height:340 }}>
+                  <div style={{ padding:"8px 14px", borderBottom:"1px solid var(--b1)", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
                     <span style={{ fontSize:12, fontWeight:700, color:"var(--acc)" }}>✏️ ANNOTATION CANVAS</span>
                     {selTs
-                      ? <span style={{ fontSize:11, color:"var(--t2)" }}>Drawing on: <strong style={{ color:"var(--t1)" }}>{selTs.time} — {selTs.label}</strong></span>
-                      : <span style={{ fontSize:11, color:"var(--t3)" }}>Select a timestamp first to save drawings</span>
+                      ? <span style={{ fontSize:11, color:"var(--t2)" }}>On: <strong style={{ color:"var(--t1)" }}>{selTs.time} — {selTs.label}</strong></span>
+                      : <span style={{ fontSize:11, color:"var(--t3)" }}>Select a timestamp to save drawings</span>
                     }
                   </div>
                   <div style={{ flex:1, minHeight:0 }}>
@@ -1548,31 +1557,20 @@ function VodReview() {
               )}
             </div>
 
-            {/* Title + action bar */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"10px 16px" }}>
-              <span className="bc" style={{ fontSize:18, fontWeight:700 }}>{sel.title}</span>
-              <div style={{ display:"flex", gap:8 }}>
-                <button className="btn btn-sub" style={{ fontSize:11 }} onClick={()=>setShowAnnotate(a=>!a)}>
-                  {showAnnotate ? "✕ Close Annotate" : "✏️ Annotate"}
-                </button>
-                <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
-                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>setDeleteConfirm({type:"vod",id:sel.id,label:sel.title})}>🗑 Delete Review</button>
-              </div>
-            </div>
-
             {/* Timestamps + Notes panel */}
-            <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:12, flex:1, minHeight:200 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:10, minHeight:300 }}>
+              {/* Timestamp list */}
               <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
                   <span className="label-sm">Timestamps ({sel.ts.length})</span>
                   <button onClick={openAddTs} style={{ fontSize:10, fontWeight:700, color:"var(--acc)", background:"rgba(212,255,30,0.1)", border:"1px solid rgba(212,255,30,0.2)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>+ ADD</button>
                 </div>
                 <div style={{ flex:1, overflowY:"auto" }}>
                   {sel.ts.length===0
-                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.7 }}>No timestamps yet.<br/>Click <strong style={{ color:"var(--acc)" }}>+ Timestamp</strong> to mark a moment.</div>
+                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.7 }}>No timestamps yet.<br/>Click <strong style={{ color:"var(--acc)" }}>+ Timestamp</strong> above.</div>
                     : sel.ts.map(t=>(
                       <div key={t.id} onClick={()=>{ setSelTsId(t.id); setActiveTab("notes"); }}
-                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)", position:"relative",
+                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)",
                           background:selTsId===t.id?"var(--s3)":"transparent",
                           borderLeft:`3px solid ${selTsId===t.id?(TS_COLORS[t.cat]||"var(--acc)"):"transparent"}`, transition:"all 0.1s" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -1582,9 +1580,9 @@ function VodReview() {
                             <span style={{ fontSize:10, color:TS_COLORS[t.cat]||"var(--t3)" }}>{t.cat}</span>
                           </div>
                           <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({type:"ts",id:t.id,label:t.label}); }}
-                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"0 4px", flexShrink:0, lineHeight:1 }}>×</button>
+                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"0 4px", flexShrink:0 }}>×</button>
                         </div>
-                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {t.note}</div>}
+                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {t.note}</div>}
                         {t.strokes?.length>0 && <div style={{ fontSize:10, color:"var(--acc)", marginTop:2 }}>✏ {t.strokes.length} drawing{t.strokes.length!==1?"s":""}</div>}
                       </div>
                     ))
@@ -1592,16 +1590,17 @@ function VodReview() {
                 </div>
               </div>
 
+              {/* Notes / Draw panel */}
               {selTs ? (
                 <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"0 14px", alignItems:"center", gap:4 }}>
+                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"0 14px", alignItems:"center", gap:4, flexShrink:0 }}>
                     <span style={{ fontFamily:"'JetBrains Mono'", fontSize:12, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700, marginRight:6 }}>{selTs.time}</span>
                     <span style={{ fontSize:13, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
                     <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30`, marginRight:8 }}>{selTs.cat}</span>
                     {["notes","draw"].map(tab=>(
                       <button key={tab} onClick={()=>setActiveTab(tab)}
-                        style={{ padding:"10px 14px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab?"var(--acc)":"transparent"}`,
-                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:600, letterSpacing:"0.05em", transition:"all 0.15s" }}>
+                        style={{ padding:"10px 16px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab?"var(--acc)":"transparent"}`,
+                          color:activeTab===tab?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:12, fontWeight:700, letterSpacing:"0.05em", transition:"all 0.15s" }}>
                         {tab==="notes"?"📝 NOTES":"✏️ DRAW"}
                       </button>
                     ))}
@@ -1610,7 +1609,7 @@ function VodReview() {
                     <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
                       <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
                         placeholder="Add your observations, callouts, feedback for this moment..."
-                        style={{ flex:1, resize:"none", minHeight:150, lineHeight:1.75, padding:12, fontSize:13,
+                        style={{ flex:1, resize:"none", minHeight:180, lineHeight:1.75, padding:12, fontSize:13,
                           background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
@@ -1619,17 +1618,17 @@ function VodReview() {
                     </div>
                   )}
                   {activeTab==="draw" && (
-                    <div style={{ flex:1, overflow:"hidden", minHeight:200 }}>
+                    <div style={{ flex:1, overflow:"hidden", minHeight:240 }}>
                       <DrawCanvas strokes={selTs.strokes||[]} onStrokes={s=>updateStrokes(selTs.id,s)}/>
                     </div>
                   )}
                 </div>
               ) : (
-                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", display:"flex", alignItems:"center", justifyContent:"center", minHeight:300 }}>
                   <div style={{ textAlign:"center", color:"var(--t3)" }}>
                     <div style={{ fontSize:32, marginBottom:10 }}>←</div>
-                    <div style={{ fontSize:13, marginBottom:8 }}>Select a timestamp to add notes & drawings</div>
-                    <div style={{ fontSize:11, color:"var(--t3)" }}>Use <strong style={{ color:"var(--acc)" }}>✏️ Annotate</strong> to draw over the video</div>
+                    <div style={{ fontSize:13, marginBottom:6 }}>Select a timestamp to write notes or draw</div>
+                    <div style={{ fontSize:11 }}>Use <strong style={{ color:"var(--acc)" }}>✏️ Annotate</strong> to draw over the video</div>
                   </div>
                 </div>
               )}
