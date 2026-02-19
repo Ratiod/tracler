@@ -981,14 +981,15 @@ function DocsEditor({ value, onChange }) {
   // Format commands
   const fmt = (cmd, val) => { document.execCommand(cmd, false, val); editorRef.current.focus(); commit(); };
 
-  // Sync initial HTML
+  const lastLoadedHtml = React.useRef(null);
+
+  // Sync HTML into DOM only when switching to a different doc (not from our own commits)
   React.useEffect(() => {
-    if (editorRef.current && value?.html !== undefined) {
-      if (editorRef.current.innerHTML !== value.html) {
-        editorRef.current.innerHTML = value.html || "";
-      }
+    if (editorRef.current && value?.html !== undefined && value.html !== lastLoadedHtml.current) {
+      lastLoadedHtml.current = value.html;
+      editorRef.current.innerHTML = value.html || "";
     }
-  }, []);
+  }, [value?.html]);
 
   const TOOLBAR_BTN = (label, action, title) => (
     <button title={title||label} onMouseDown={e=>{e.preventDefault(); action();}}
@@ -1097,25 +1098,29 @@ function GamePlans() {
     save(next); return next;
   });
 
-  React.useEffect(()=>{
-    if(sel) {
-      const fresh = docs.find(d=>d.id===sel.id);
-      if (fresh) setSel(fresh);
-    }
-  }, [docs]);
-
-  // When switching docs, load content into editor
+  // When switching docs, load content into editor (but NOT when docs array changes from our own save)
   React.useEffect(()=>{
     if (sel) setDocContent(sel.content || { html: sel.body||"", images:[] });
     else setDocContent({ html:"", images:[] });
-  }, [sel?.id]);
+  }, [sel?.id]); // only on ID change, not every save
+
+  // Debounced save — writes to localStorage every 500ms after typing stops
+  const saveTimer = React.useRef(null);
+  const selIdRef  = React.useRef(sel?.id);
+  React.useEffect(()=>{ selIdRef.current = sel?.id; }, [sel?.id]);
 
   const saveContent = (content) => {
     setDocContent(content);
-    if (!sel) return;
-    const updated = { ...sel, content };
-    setDocs(p=>p.map(d=>d.id===sel.id?updated:d));
-    setSel(updated);
+    if (!selIdRef.current) return;
+    // Save immediately to localStorage without going through React state loop
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setDocsRaw(prev => {
+        const next = prev.map(d => d.id===selIdRef.current ? { ...d, content } : d);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }, 400);
   };
 
   const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
@@ -1130,7 +1135,9 @@ function GamePlans() {
   };
 
   const deleteDoc = (id) => {
-    setDocs(p=>p.filter(d=>d.id!==id));
+    const next = docs.filter(d=>d.id!==id);
+    setDocsRaw(next);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
     if(sel?.id===id) setSel(null);
     setDelConfirm(null);
   };
