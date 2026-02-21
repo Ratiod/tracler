@@ -1797,6 +1797,9 @@ function getEmbedUrl(url) {
   // Shorts
   const shorts = url.match(/youtube\.com\/shorts\/([^?&]+)/);
   if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?rel=0&modestbranding=1`;
+  // Live streams (youtube.com/live/VIDEO_ID)
+  const live = url.match(/youtube\.com\/live\/([^?&/]+)/);
+  if (live) return `https://www.youtube.com/embed/${live[1]}?rel=0&modestbranding=1`;
   return null;
 }
 
@@ -1991,6 +1994,54 @@ function DrawCanvas({ strokes, onStrokes }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   RESIZABLE IMAGE
+════════════════════════════════════════ */
+function ResizableImage({ src, onRemove }) {
+  const [height, setHeight] = React.useState(null);
+  const [dragging, setDragging] = React.useState(false);
+  const startY = React.useRef(0);
+  const startH = React.useRef(0);
+  const imgRef = React.useRef(null);
+
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    startY.current = e.clientY;
+    startH.current = imgRef.current ? imgRef.current.offsetHeight : 200;
+    setDragging(true);
+  };
+
+  React.useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      const newH = Math.max(60, startH.current + (e.clientY - startY.current));
+      setHeight(newH);
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [dragging]);
+
+  return (
+    <div style={{ position:"relative", borderRadius:"var(--r)", border:"1px solid var(--b1)", flexShrink:0, userSelect:"none" }}>
+      <img ref={imgRef} src={src} alt="note"
+        style={{ width:"100%", display:"block", borderRadius:"var(--r)", height:height||"auto", objectFit:"contain" }}/>
+      <button onClick={onRemove}
+        style={{ position:"absolute", top:6, right:6, width:22, height:22, borderRadius:"50%",
+          background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", cursor:"pointer",
+          fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", zIndex:2 }}>×</button>
+      {/* Drag handle */}
+      <div onMouseDown={onMouseDown}
+        style={{ position:"absolute", bottom:0, left:0, right:0, height:10,
+          cursor:"ns-resize", display:"flex", alignItems:"center", justifyContent:"center",
+          background:"linear-gradient(transparent, rgba(0,0,0,0.4))", borderRadius:"0 0 var(--r) var(--r)" }}>
+        <div style={{ width:32, height:3, borderRadius:2, background:"rgba(255,255,255,0.4)" }}/>
       </div>
     </div>
   );
@@ -2227,13 +2278,7 @@ function VodReview() {
                     {(selTs.noteImages||[]).length > 0 && (
                       <div style={{ display:"flex", flexDirection:"column", gap:8, overflowY:"auto", maxHeight:340 }}>
                         {(selTs.noteImages||[]).map(img => (
-                          <div key={img.id} style={{ position:"relative", borderRadius:"var(--r)", overflow:"hidden", border:"1px solid var(--b1)", flexShrink:0 }}>
-                            <img src={img.src} alt="note" style={{ width:"100%", display:"block", borderRadius:"var(--r)" }}/>
-                            <button onClick={()=>removeNoteImage(selTs.id, img.id)}
-                              style={{ position:"absolute", top:6, right:6, width:22, height:22, borderRadius:"50%",
-                                background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", cursor:"pointer",
-                                fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-                          </div>
+                          <ResizableImage key={img.id} src={img.src} onRemove={()=>removeNoteImage(selTs.id, img.id)}/>
                         ))}
                       </div>
                     )}
