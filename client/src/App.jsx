@@ -1456,23 +1456,17 @@ function DataAnalysis({ players=[] }) {
 ════════════════════════════════════════ */
 function getEmbedUrl(url) {
   if (!url) return null;
-  const params = "?rel=0&modestbranding=1";
   // Already an embed URL
   if (url.includes("youtube.com/embed/")) return url;
-  // youtu.be short link  e.g. https://youtu.be/ABC123?si=xxx
-  const short = url.match(/youtu\.be\/([^?&/]+)/);
-  if (short) return `https://www.youtube.com/embed/${short[1]}${params}`;
-  // Standard watch URL  e.g. https://www.youtube.com/watch?v=ABC123
-  const watch = url.match(/[?&]v=([^&]+)/);
-  if (watch) return `https://www.youtube.com/embed/${watch[1]}${params}`;
-  // Live stream URL  e.g. https://www.youtube.com/live/ABC123?feature=share
-  const live = url.match(/youtube\.com\/live\/([^?&/]+)/);
-  if (live) return `https://www.youtube.com/embed/${live[1]}${params}`;
-  // Shorts  e.g. https://www.youtube.com/shorts/ABC123
-  const shorts = url.match(/youtube\.com\/shorts\/([^?&/]+)/);
-  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}${params}`;
-  // Fallback: if it contains /embed/ anywhere just return it
-  if (url.includes("/embed/")) return url;
+  // youtu.be short link
+  const short = url.match(/youtu\.be\/([^?&]+)/);
+  if (short) return `https://www.youtube.com/embed/${short[1]}?rel=0&modestbranding=1`;
+  // Standard watch URL
+  const watch = url.match(/youtube\.com\/watch\?v=([^&]+)/);
+  if (watch) return `https://www.youtube.com/embed/${watch[1]}?rel=0&modestbranding=1`;
+  // Shorts
+  const shorts = url.match(/youtube\.com\/shorts\/([^?&]+)/);
+  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?rel=0&modestbranding=1`;
   return null;
 }
 
@@ -1746,6 +1740,23 @@ function VodReview() {
 
   const updateNote    = (tsId, note)    => mutateTs(tsId, t=>({...t,note}));
   const updateStrokes = (tsId, strokes) => mutateTs(tsId, t=>({...t,strokes}));
+  const addNoteImage  = (tsId, src)     => mutateTs(tsId, t=>({...t, noteImages:[...(t.noteImages||[]),{id:Date.now(),src}]}));
+  const removeNoteImage = (tsId, imgId) => mutateTs(tsId, t=>({...t, noteImages:(t.noteImages||[]).filter(i=>i.id!==imgId)}));
+
+  const handleNotesPaste = (e, tsId) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = (ev) => addNoteImage(tsId, ev.target.result);
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
 
   React.useEffect(()=>{ setUrlInput(sel?.url||""); setSelTsId(null); setShowAnnotate(false); }, [selId]);
 
@@ -1876,13 +1887,32 @@ function VodReview() {
                     <span style={{ fontSize:13, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
                     <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30` }}>{selTs.cat}</span>
                   </div>
-                  <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10 }}>
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10, overflow:"hidden" }}>
                     <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
-                      placeholder="Add your observations, callouts, feedback for this moment..."
-                      style={{ flex:1, resize:"none", minHeight:180, lineHeight:1.75, padding:12, fontSize:13,
+                      onPaste={e=>handleNotesPaste(e, selTs.id)}
+                      placeholder="Add your observations, callouts, feedback... paste images with Ctrl+V"
+                      style={{ resize:"none", minHeight:120, lineHeight:1.75, padding:12, fontSize:13,
                         background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
-                    <div style={{ display:"flex", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:11, color:"var(--t3)" }}>{selTs.note.length} chars</span>
+                    {/* Pasted images */}
+                    {(selTs.noteImages||[]).length > 0 && (
+                      <div style={{ display:"flex", flexDirection:"column", gap:8, overflowY:"auto", maxHeight:340 }}>
+                        {(selTs.noteImages||[]).map(img => (
+                          <div key={img.id} style={{ position:"relative", borderRadius:"var(--r)", overflow:"hidden", border:"1px solid var(--b1)", flexShrink:0 }}>
+                            <img src={img.src} alt="note" style={{ width:"100%", display:"block", borderRadius:"var(--r)" }}/>
+                            <button onClick={()=>removeNoteImage(selTs.id, img.id)}
+                              style={{ position:"absolute", top:6, right:6, width:22, height:22, borderRadius:"50%",
+                                background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", cursor:"pointer",
+                                fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+                      <span style={{ fontSize:11, color:"var(--t3)" }}>
+                        {selTs.note.length} chars
+                        {(selTs.noteImages||[]).length > 0 && <> · {(selTs.noteImages||[]).length} image{(selTs.noteImages||[]).length!==1?"s":""}</>}
+                        {" · Ctrl+V to paste image"}
+                      </span>
                       <span style={{ fontSize:11, color:"var(--green)" }}>✓ Saved automatically</span>
                     </div>
                   </div>
