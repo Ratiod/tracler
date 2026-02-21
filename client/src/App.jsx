@@ -1456,17 +1456,23 @@ function DataAnalysis({ players=[] }) {
 ════════════════════════════════════════ */
 function getEmbedUrl(url) {
   if (!url) return null;
+  const params = "?rel=0&modestbranding=1";
   // Already an embed URL
   if (url.includes("youtube.com/embed/")) return url;
-  // youtu.be short link
-  const short = url.match(/youtu\.be\/([^?&]+)/);
-  if (short) return `https://www.youtube.com/embed/${short[1]}?rel=0&modestbranding=1`;
-  // Standard watch URL
-  const watch = url.match(/youtube\.com\/watch\?v=([^&]+)/);
-  if (watch) return `https://www.youtube.com/embed/${watch[1]}?rel=0&modestbranding=1`;
-  // Shorts
-  const shorts = url.match(/youtube\.com\/shorts\/([^?&]+)/);
-  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?rel=0&modestbranding=1`;
+  // youtu.be short link  e.g. https://youtu.be/ABC123?si=xxx
+  const short = url.match(/youtu\.be\/([^?&/]+)/);
+  if (short) return `https://www.youtube.com/embed/${short[1]}${params}`;
+  // Standard watch URL  e.g. https://www.youtube.com/watch?v=ABC123
+  const watch = url.match(/[?&]v=([^&]+)/);
+  if (watch) return `https://www.youtube.com/embed/${watch[1]}${params}`;
+  // Live stream URL  e.g. https://www.youtube.com/live/ABC123?feature=share
+  const live = url.match(/youtube\.com\/live\/([^?&/]+)/);
+  if (live) return `https://www.youtube.com/embed/${live[1]}${params}`;
+  // Shorts  e.g. https://www.youtube.com/shorts/ABC123
+  const shorts = url.match(/youtube\.com\/shorts\/([^?&/]+)/);
+  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}${params}`;
+  // Fallback: if it contains /embed/ anywhere just return it
+  if (url.includes("/embed/")) return url;
   return null;
 }
 
