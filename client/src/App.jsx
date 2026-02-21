@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+// Auth-aware API helper — automatically attaches JWT token
+const getToken = () => localStorage.getItem("ticra_token");
 const api = {
-  get:    (path)       => fetch(`${API}${path}`).then(r=>r.json()),
-  post:   (path, body) => fetch(`${API}${path}`, { method:"POST",   headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }).then(r=>r.json()),
-  put:    (path, body) => fetch(`${API}${path}`, { method:"PUT",    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }).then(r=>r.json()),
-  delete: (path)       => fetch(`${API}${path}`, { method:"DELETE" }).then(r=>r.json()),
+  get:    (path)       => fetch(`${API}${path}`, { headers: authHeaders() }).then(r=>r.json()),
+  post:   (path, body) => fetch(`${API}${path}`, { method:"POST",   headers:{"Content-Type":"application/json",...authHeaders()}, body:JSON.stringify(body) }).then(r=>r.json()),
+  put:    (path, body) => fetch(`${API}${path}`, { method:"PUT",    headers:{"Content-Type":"application/json",...authHeaders()}, body:JSON.stringify(body) }).then(r=>r.json()),
+  delete: (path)       => fetch(`${API}${path}`, { method:"DELETE", headers: authHeaders() }).then(r=>r.json()),
 };
+function authHeaders() {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -209,14 +216,316 @@ const NAV = [
 ];
 
 /* ════════════════════════════════════════
+   LOGIN SCREEN
+════════════════════════════════════════ */
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error,    setError]    = useState("");
+  const [loading,  setLoading]  = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
+      localStorage.setItem("ticra_token", data.token);
+      onLogin(data.user);
+    } catch {
+      setError("Cannot reach server. Check your connection.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ width:"100vw", height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"var(--bg)", flexDirection:"column", gap:0 }}>
+      <style>{css}</style>
+      {/* Logo */}
+      <div style={{ marginBottom:32, textAlign:"center" }}>
+        <div style={{ width:52, height:52, background:"var(--acc)", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" }}>
+          <span className="bc" style={{ fontSize:28, fontWeight:900, color:"#080a10" }}>TC</span>
+        </div>
+        <div className="bc" style={{ fontSize:26, fontWeight:900, letterSpacing:"0.1em" }}>TICRA</div>
+        <div style={{ fontSize:12, color:"var(--t3)", marginTop:4, letterSpacing:"0.06em" }}>COACHING PLATFORM</div>
+      </div>
+
+      {/* Card */}
+      <div style={{ width:340, background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:14, padding:28 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:20, color:"var(--t1)" }}>Sign in to your account</div>
+        <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div>
+            <div className="label-sm" style={{ marginBottom:5 }}>Username</div>
+            <input
+              type="text" autoComplete="username" value={username}
+              onChange={e=>setUsername(e.target.value)}
+              placeholder="Enter username"
+              style={{ width:"100%", padding:"9px 12px", borderRadius:7, border:"1px solid var(--b1)", background:"var(--s2)", color:"var(--t1)", fontSize:13 }}
+            />
+          </div>
+          <div>
+            <div className="label-sm" style={{ marginBottom:5 }}>Password</div>
+            <input
+              type="password" autoComplete="current-password" value={password}
+              onChange={e=>setPassword(e.target.value)}
+              placeholder="Enter password"
+              style={{ width:"100%", padding:"9px 12px", borderRadius:7, border:"1px solid var(--b1)", background:"var(--s2)", color:"var(--t1)", fontSize:13 }}
+            />
+          </div>
+          {error && (
+            <div style={{ background:"rgba(255,70,85,0.12)", border:"1px solid rgba(255,70,85,0.3)", borderRadius:7, padding:"8px 12px", fontSize:12, color:"#ff6b7a" }}>
+              {error}
+            </div>
+          )}
+          <button type="submit" className="btn btn-acc" disabled={loading} style={{ width:"100%", justifyContent:"center", marginTop:4, padding:"10px 0", fontSize:13 }}>
+            {loading ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
+      </div>
+      <div style={{ marginTop:16, fontSize:11, color:"var(--t3)" }}>Contact your coach if you need an account</div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   ADMIN PANEL
+════════════════════════════════════════ */
+function AdminPanel() {
+  const [users,       setUsers]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [resetTarget, setResetTarget] = useState(null); // user object
+  const [form,        setForm]        = useState({ username:"", password:"", role:"player" });
+  const [resetPw,     setResetPw]     = useState("");
+  const [feedback,    setFeedback]    = useState(""); // success/error message
+
+  const flash = (msg) => { setFeedback(msg); setTimeout(()=>setFeedback(""), 3000); };
+
+  const loadUsers = () => {
+    setLoading(true);
+    api.get("/auth/users").then(d => { if (Array.isArray(d)) setUsers(d); setLoading(false); });
+  };
+  useEffect(loadUsers, []);
+
+  const createUser = async () => {
+    if (!form.username || !form.password) return flash("Username and password required");
+    const res = await api.post("/auth/users", form);
+    if (res.error) return flash("Error: " + res.error);
+    flash(`✓ Created @${form.username}`);
+    setForm({ username:"", password:"", role:"player" });
+    setShowCreate(false);
+    loadUsers();
+  };
+
+  const ban = async (u) => {
+    if (!confirm(`Ban @${u.username}? They won't be able to log in.`)) return;
+    await api.post(`/auth/users/${u.id}/ban`, {});
+    flash(`✓ Banned @${u.username}`);
+    loadUsers();
+  };
+  const unban = async (u) => {
+    await api.post(`/auth/users/${u.id}/unban`, {});
+    flash(`✓ Unbanned @${u.username}`);
+    loadUsers();
+  };
+  const doReset = async () => {
+    if (!resetPw || resetPw.length < 4) return flash("Password must be at least 4 characters");
+    const res = await api.post(`/auth/users/${resetTarget.id}/reset-password`, { password: resetPw });
+    if (res.error) return flash("Error: " + res.error);
+    flash(`✓ Password reset for @${resetTarget.username}`);
+    setResetTarget(null); setResetPw("");
+  };
+  const deleteUser = async (u) => {
+    if (!confirm(`Delete @${u.username}? This cannot be undone.`)) return;
+    await api.delete(`/auth/users/${u.id}`);
+    flash(`✓ Deleted @${u.username}`);
+    loadUsers();
+  };
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "Never";
+
+  return (
+    <div style={{ padding:28, maxWidth:860 }}>
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+        <div>
+          <div className="bc" style={{ fontSize:24, fontWeight:900, letterSpacing:"0.05em" }}>USER MANAGEMENT</div>
+          <div style={{ fontSize:12, color:"var(--t3)", marginTop:2 }}>Create accounts, reset passwords, ban/unban players</div>
+        </div>
+        <button className="btn btn-acc" style={{ marginLeft:"auto" }} onClick={()=>setShowCreate(true)}>+ Create Account</button>
+      </div>
+
+      {/* Feedback banner */}
+      {feedback && (
+        <div style={{ background: feedback.startsWith("Error") ? "rgba(255,70,85,0.12)" : "rgba(0,200,120,0.12)",
+          border: `1px solid ${feedback.startsWith("Error") ? "rgba(255,70,85,0.3)" : "rgba(0,200,120,0.3)"}`,
+          borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:16,
+          color: feedback.startsWith("Error") ? "#ff6b7a" : "#4caf7d" }}>
+          {feedback}
+        </div>
+      )}
+
+      {/* User table */}
+      <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 100px 120px 130px", gap:0,
+          padding:"10px 16px", borderBottom:"1px solid var(--b1)",
+          fontSize:10, fontWeight:700, letterSpacing:"0.1em", color:"var(--t3)", textTransform:"uppercase" }}>
+          <div>User</div><div>Role</div><div>Status</div><div>Last Login</div><div style={{ textAlign:"right" }}>Actions</div>
+        </div>
+        {loading ? (
+          <div style={{ padding:24, color:"var(--t3)", fontSize:13, textAlign:"center" }}>Loading…</div>
+        ) : users.length === 0 ? (
+          <div style={{ padding:24, color:"var(--t3)", fontSize:13, textAlign:"center" }}>No users found</div>
+        ) : users.map(u => (
+          <div key={u.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px 100px 120px 130px",
+            padding:"12px 16px", borderBottom:"1px solid var(--b1)", alignItems:"center",
+            background: u.is_banned ? "rgba(255,70,85,0.04)" : "transparent" }}>
+            {/* User */}
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background: u.role==="admin" ? "var(--acc)" : "var(--s3)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700,
+                color: u.role==="admin" ? "#080a10" : "var(--t2)", flexShrink:0 }}>
+                {u.username[0].toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--t1)" }}>@{u.username}</div>
+                <div style={{ fontSize:10, color:"var(--t3)" }}>Joined {fmtDate(u.created_at)}</div>
+              </div>
+            </div>
+            {/* Role */}
+            <div>
+              <span className="chip" style={{ background: u.role==="admin" ? "rgba(var(--acc-rgb),0.15)" : "var(--s3)",
+                color: u.role==="admin" ? "var(--acc)" : "var(--t2)", fontSize:10, padding:"2px 8px" }}>
+                {u.role}
+              </span>
+            </div>
+            {/* Status */}
+            <div>
+              <span className="chip" style={{ background: u.is_banned ? "rgba(255,70,85,0.15)" : "rgba(0,200,120,0.1)",
+                color: u.is_banned ? "#ff6b7a" : "#4caf7d", fontSize:10, padding:"2px 8px" }}>
+                {u.is_banned ? "Banned" : "Active"}
+              </span>
+            </div>
+            {/* Last login */}
+            <div style={{ fontSize:11, color:"var(--t3)" }}>{fmtDate(u.last_login)}</div>
+            {/* Actions */}
+            <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+              <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11 }}
+                onClick={()=>{ setResetTarget(u); setResetPw(""); }}>
+                🔑 Reset
+              </button>
+              {u.role !== "admin" && (
+                u.is_banned
+                  ? <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#4caf7d" }} onClick={()=>unban(u)}>Unban</button>
+                  : <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#ff6b7a" }} onClick={()=>ban(u)}>Ban</button>
+              )}
+              {u.role !== "admin" && (
+                <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#ff6b7a" }} onClick={()=>deleteUser(u)}>🗑</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create user modal */}
+      {showCreate && (
+        <Modal onClose={()=>setShowCreate(false)} title="Create Account">
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <div className="label-sm" style={{ marginBottom:5 }}>Username</div>
+              <input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))}
+                placeholder="e.g. player1" style={{ width:"100%" }}/>
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:5 }}>Password</div>
+              <input type="password" value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}
+                placeholder="Minimum 4 characters" style={{ width:"100%" }}/>
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:5 }}>Role</div>
+              <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} style={{ width:"100%" }}>
+                <option value="player">Player</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
+              <button className="btn btn-ghost" onClick={()=>setShowCreate(false)}>Cancel</button>
+              <button className="btn btn-acc" onClick={createUser}>Create Account</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reset password modal */}
+      {resetTarget && (
+        <Modal onClose={()=>setResetTarget(null)} title={`Reset Password — @${resetTarget.username}`}>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ fontSize:12, color:"var(--t2)" }}>
+              Set a new password for <strong>@{resetTarget.username}</strong>. They should change it after logging in.
+            </div>
+            <div>
+              <div className="label-sm" style={{ marginBottom:5 }}>New Password</div>
+              <input type="password" value={resetPw} onChange={e=>setResetPw(e.target.value)}
+                placeholder="Minimum 4 characters" style={{ width:"100%" }}/>
+            </div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button className="btn btn-ghost" onClick={()=>setResetTarget(null)}>Cancel</button>
+              <button className="btn btn-acc" onClick={doReset}>Reset Password</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
    APP SHELL
 ════════════════════════════════════════ */
 export default function BzTracker() {
-  const [page, setPage]         = useState("dashboard");
-  const [stratTab, setStratTab] = useState("playbooks");
-  const [players, setPlayers]   = useState(PLAYERS_DEFAULT);
+  const [authUser,  setAuthUser]  = useState(null);   // null = not checked yet
+  const [authReady, setAuthReady] = useState(false);  // true once we've verified token
+  const [page,      setPage]      = useState("dashboard");
+  const [stratTab,  setStratTab]  = useState("playbooks");
+  const [players,   setPlayers]   = useState(PLAYERS_DEFAULT);
 
-  useEffect(()=>{ api.get("/api/players").then(d=>{ if(Array.isArray(d)) setPlayers(d); }).catch(()=>{}); }, []);
+  // On mount: verify stored token
+  useEffect(() => {
+    const token = localStorage.getItem("ticra_token");
+    if (!token) { setAuthReady(true); return; }
+    fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.id) setAuthUser(data);
+        else localStorage.removeItem("ticra_token");
+      })
+      .catch(() => localStorage.removeItem("ticra_token"))
+      .finally(() => setAuthReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (authUser) api.get("/api/players").then(d => { if (Array.isArray(d)) setPlayers(d); }).catch(() => {});
+  }, [authUser]);
+
+  const handleLogin  = (user) => { setAuthUser(user); setPage("dashboard"); };
+  const handleLogout = () => {
+    localStorage.removeItem("ticra_token");
+    setAuthUser(null);
+    setPage("dashboard");
+  };
+
+  // Not yet checked
+  if (!authReady) return <div style={{ width:"100vw", height:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><style>{css}</style><div style={{ color:"var(--t3)", fontSize:13 }}>Loading…</div></div>;
+
+  // Not logged in
+  if (!authUser) return <LoginScreen onLogin={handleLogin}/>;
+
+  const isAdmin = authUser.role === "admin";
 
   const renderPage = () => {
     switch(page) {
@@ -228,9 +537,12 @@ export default function BzTracker() {
       case "vod":       return <VodReview/>;
       case "tasks":     return <Tasks players={players} setPlayers={setPlayers}/>;
       case "calendar":  return <CalendarPage/>;
+      case "admin":     return isAdmin ? <AdminPanel/> : <Dashboard setPage={setPage}/>;
       default:          return <Dashboard setPage={setPage}/>;
     }
   };
+
+  const initials = authUser.username.slice(0,2).toUpperCase();
 
   return (
     <>
@@ -249,6 +561,7 @@ export default function BzTracker() {
               </div>
             </div>
           </div>
+
           <nav style={{ flex:1, overflowY:"auto", padding:"10px 8px" }}>
             {NAV.map(n=>(
               <div key={n.key} className={`nav-item${page===n.key?" on":""}`} onClick={()=>setPage(n.key)} style={{ marginBottom:2 }}>
@@ -257,14 +570,31 @@ export default function BzTracker() {
                 {n.live && <div className="ldot"/>}
               </div>
             ))}
-          </nav>
-          <div style={{ borderTop:"1px solid var(--b1)", padding:"12px 10px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:30, height:30, borderRadius:"50%", background:"var(--acc)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#080a10", flexShrink:0 }}>CO</div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:600 }}>Coach</div>
-                <div style={{ fontSize:10, color:"var(--t3)" }}>coach</div>
+            {/* Admin-only nav item */}
+            {isAdmin && (
+              <div className={`nav-item${page==="admin"?" on":""}`} onClick={()=>setPage("admin")} style={{ marginBottom:2, marginTop:8, borderTop:"1px solid var(--b1)", paddingTop:10 }}>
+                <span style={{ fontSize:14, width:18, textAlign:"center", flexShrink:0 }}>⚙</span>
+                <span style={{ flex:1 }}>User Management</span>
               </div>
+            )}
+          </nav>
+
+          {/* User footer */}
+          <div style={{ borderTop:"1px solid var(--b1)", padding:"10px 10px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:30, height:30, borderRadius:"50%", background: isAdmin ? "var(--acc)" : "var(--s3)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700,
+                color: isAdmin ? "#080a10" : "var(--t2)", flexShrink:0 }}>
+                {initials}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>@{authUser.username}</div>
+                <div style={{ fontSize:10, color:"var(--t3)" }}>{authUser.role}</div>
+              </div>
+              <button onClick={handleLogout} title="Sign out"
+                style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:16, padding:"2px 4px", flexShrink:0, lineHeight:1 }}>
+                ⏻
+              </button>
             </div>
           </div>
         </aside>
