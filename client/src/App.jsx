@@ -1,19 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
-// Auth-aware API helper — automatically attaches JWT token
-const getToken = () => localStorage.getItem("ticra_token");
 const api = {
-  get:    (path)       => fetch(`${API}${path}`, { headers: authHeaders() }).then(r=>r.json()),
-  post:   (path, body) => fetch(`${API}${path}`, { method:"POST",   headers:{"Content-Type":"application/json",...authHeaders()}, body:JSON.stringify(body) }).then(r=>r.json()),
-  put:    (path, body) => fetch(`${API}${path}`, { method:"PUT",    headers:{"Content-Type":"application/json",...authHeaders()}, body:JSON.stringify(body) }).then(r=>r.json()),
-  delete: (path)       => fetch(`${API}${path}`, { method:"DELETE", headers: authHeaders() }).then(r=>r.json()),
+  get:    (path)       => fetch(`${API}${path}`).then(r=>r.json()),
+  post:   (path, body) => fetch(`${API}${path}`, { method:"POST",   headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }).then(r=>r.json()),
+  put:    (path, body) => fetch(`${API}${path}`, { method:"PUT",    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }).then(r=>r.json()),
+  delete: (path)       => fetch(`${API}${path}`, { method:"DELETE" }).then(r=>r.json()),
 };
-function authHeaders() {
-  const t = getToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -35,14 +28,6 @@ const css = `
   button { font-family:'Barlow',sans-serif; cursor:pointer; border:none; outline:none; }
   input,select,textarea { font-family:'Barlow',sans-serif; outline:none; }
   select option { background:var(--s2); }
-  /* Rich editor content styles */
-  .docs-editor h2 { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:800; color:var(--t1); margin:18px 0 8px; letter-spacing:0.02em; }
-  .docs-editor h3 { font-family:'Barlow Condensed',sans-serif; font-size:19px; font-weight:700; color:var(--t2); margin:14px 0 6px; }
-  .docs-editor p { margin:6px 0; }
-  .docs-editor ul, .docs-editor ol { padding-left:22px; margin:6px 0; }
-  .docs-editor li { margin:3px 0; }
-  .docs-editor b, .docs-editor strong { color:var(--t1); font-weight:700; }
-  .docs-editor img { border-radius:6px; }
   @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
   @keyframes slideRight { from{transform:scaleX(0)} to{transform:scaleX(1)} }
@@ -109,39 +94,16 @@ const css = `
 const MAPS = ["Ascent","Bind","Haven","Pearl","Lotus","Sunset","Abyss","Split"];
 
 const AGENTS = [
-  // Duelists
-  { name:"Jett",     color:"#4fc3f7", bg:"#0b1e2b", role:"Duelist" },
-  { name:"Raze",     color:"#ffab40", bg:"#2b1a08", role:"Duelist" },
-  { name:"Neon",     color:"#4fc3f7", bg:"#0b1e2b", role:"Duelist" },
-  { name:"Phoenix",  color:"#ff7043", bg:"#2b1005", role:"Duelist" },
-  { name:"Reyna",    color:"#c44cf5", bg:"#1e0a28", role:"Duelist" },
-  { name:"Yoru",     color:"#4a6bff", bg:"#080e28", role:"Duelist" },
-  { name:"Iso",      color:"#6fc0e8", bg:"#0a1a28", role:"Duelist" },
-  { name:"Waylay",   color:"#ffcc44", bg:"#2a1e00", role:"Duelist" },
-  // Initiators
-  { name:"Sova",     color:"#b39ddb", bg:"#1a1428", role:"Initiator" },
-  { name:"Fade",     color:"#d4b0ff", bg:"#1c0e2e", role:"Initiator" },
-  { name:"Gekko",    color:"#a3e84f", bg:"#182010", role:"Initiator" },
-  { name:"Breach",   color:"#ff8a65", bg:"#2b1008", role:"Initiator" },
-  { name:"KAY/O",    color:"#80cbc4", bg:"#0a1e1c", role:"Initiator" },
-  { name:"Skye",     color:"#69c47a", bg:"#0a1e10", role:"Initiator" },
-
-  // Controllers
-  { name:"Omen",     color:"#8892aa", bg:"#141820", role:"Controller" },
-  { name:"Brimstone",color:"#ff8a50", bg:"#2a1008", role:"Controller" },
-  { name:"Viper",    color:"#69f0ae", bg:"#0a1e12", role:"Controller" },
-  { name:"Astra",    color:"#c39af5", bg:"#1a0e2e", role:"Controller" },
-  { name:"Harbor",   color:"#4fc3f7", bg:"#0b1e2b", role:"Controller" },
-  { name:"Clove",    color:"#e8b4d4", bg:"#28101e", role:"Controller" },
-  // Sentinels
-  { name:"Killjoy",  color:"#d4ff1e", bg:"#1e2408", role:"Sentinel" },
-  { name:"Cypher",   color:"#c8d0e0", bg:"#161c28", role:"Sentinel" },
-  { name:"Sage",     color:"#69f0ae", bg:"#0a1e16", role:"Sentinel" },
-  { name:"Chamber",  color:"#d4aa70", bg:"#281e08", role:"Sentinel" },
-  { name:"Deadlock", color:"#9eb8d4", bg:"#0e1820", role:"Sentinel" },
-  { name:"Vyse",     color:"#b05090", bg:"#1e0818", role:"Sentinel" },
-  { name:"Tejo",     color:"#a8c070", bg:"#161e08", role:"Sentinel" },
-  { name:"Veto",     color:"#e05050", bg:"#2a0a0a", role:"Sentinel" },
+  { name:"Jett",    color:"#4fc3f7", bg:"#0b1e2b" },
+  { name:"Raze",    color:"#ffab40", bg:"#2b1a08" },
+  { name:"Sage",    color:"#69f0ae", bg:"#0a1e16" },
+  { name:"Sova",    color:"#b39ddb", bg:"#1a1428" },
+  { name:"Omen",    color:"#8892aa", bg:"#141820" },
+  { name:"Killjoy", color:"#d4ff1e", bg:"#1e2408" },
+  { name:"Cypher",  color:"#c8d0e0", bg:"#161c28" },
+  { name:"Neon",    color:"#4fc3f7", bg:"#0b1e2b" },
+  { name:"Fade",    color:"#d4b0ff", bg:"#1c0e2e" },
+  { name:"Gekko",   color:"#a3e84f", bg:"#182010" },
 ];
 
 const PLAYERS_DEFAULT = [];
@@ -216,316 +178,14 @@ const NAV = [
 ];
 
 /* ════════════════════════════════════════
-   LOGIN SCREEN
-════════════════════════════════════════ */
-function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error,    setError]    = useState("");
-  const [loading,  setLoading]  = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError(""); setLoading(true);
-    try {
-      const res = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
-      localStorage.setItem("ticra_token", data.token);
-      onLogin(data.user);
-    } catch {
-      setError("Cannot reach server. Check your connection.");
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ width:"100vw", height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"var(--bg)", flexDirection:"column", gap:0 }}>
-      <style>{css}</style>
-      {/* Logo */}
-      <div style={{ marginBottom:32, textAlign:"center" }}>
-        <div style={{ width:52, height:52, background:"var(--acc)", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" }}>
-          <span className="bc" style={{ fontSize:28, fontWeight:900, color:"#080a10" }}>TC</span>
-        </div>
-        <div className="bc" style={{ fontSize:26, fontWeight:900, letterSpacing:"0.1em" }}>TICRA</div>
-        <div style={{ fontSize:12, color:"var(--t3)", marginTop:4, letterSpacing:"0.06em" }}>COACHING PLATFORM</div>
-      </div>
-
-      {/* Card */}
-      <div style={{ width:340, background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:14, padding:28 }}>
-        <div style={{ fontSize:15, fontWeight:700, marginBottom:20, color:"var(--t1)" }}>Sign in to your account</div>
-        <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div>
-            <div className="label-sm" style={{ marginBottom:5 }}>Username</div>
-            <input
-              type="text" autoComplete="username" value={username}
-              onChange={e=>setUsername(e.target.value)}
-              placeholder="Enter username"
-              style={{ width:"100%", padding:"9px 12px", borderRadius:7, border:"1px solid var(--b1)", background:"var(--s2)", color:"var(--t1)", fontSize:13 }}
-            />
-          </div>
-          <div>
-            <div className="label-sm" style={{ marginBottom:5 }}>Password</div>
-            <input
-              type="password" autoComplete="current-password" value={password}
-              onChange={e=>setPassword(e.target.value)}
-              placeholder="Enter password"
-              style={{ width:"100%", padding:"9px 12px", borderRadius:7, border:"1px solid var(--b1)", background:"var(--s2)", color:"var(--t1)", fontSize:13 }}
-            />
-          </div>
-          {error && (
-            <div style={{ background:"rgba(255,70,85,0.12)", border:"1px solid rgba(255,70,85,0.3)", borderRadius:7, padding:"8px 12px", fontSize:12, color:"#ff6b7a" }}>
-              {error}
-            </div>
-          )}
-          <button type="submit" className="btn btn-acc" disabled={loading} style={{ width:"100%", justifyContent:"center", marginTop:4, padding:"10px 0", fontSize:13 }}>
-            {loading ? "Signing in…" : "Sign In"}
-          </button>
-        </form>
-      </div>
-      <div style={{ marginTop:16, fontSize:11, color:"var(--t3)" }}>Contact your coach if you need an account</div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════
-   ADMIN PANEL
-════════════════════════════════════════ */
-function AdminPanel() {
-  const [users,       setUsers]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [resetTarget, setResetTarget] = useState(null); // user object
-  const [form,        setForm]        = useState({ username:"", password:"", role:"player" });
-  const [resetPw,     setResetPw]     = useState("");
-  const [feedback,    setFeedback]    = useState(""); // success/error message
-
-  const flash = (msg) => { setFeedback(msg); setTimeout(()=>setFeedback(""), 3000); };
-
-  const loadUsers = () => {
-    setLoading(true);
-    api.get("/auth/users").then(d => { if (Array.isArray(d)) setUsers(d); setLoading(false); });
-  };
-  useEffect(loadUsers, []);
-
-  const createUser = async () => {
-    if (!form.username || !form.password) return flash("Username and password required");
-    const res = await api.post("/auth/users", form);
-    if (res.error) return flash("Error: " + res.error);
-    flash(`✓ Created @${form.username}`);
-    setForm({ username:"", password:"", role:"player" });
-    setShowCreate(false);
-    loadUsers();
-  };
-
-  const ban = async (u) => {
-    if (!confirm(`Ban @${u.username}? They won't be able to log in.`)) return;
-    await api.post(`/auth/users/${u.id}/ban`, {});
-    flash(`✓ Banned @${u.username}`);
-    loadUsers();
-  };
-  const unban = async (u) => {
-    await api.post(`/auth/users/${u.id}/unban`, {});
-    flash(`✓ Unbanned @${u.username}`);
-    loadUsers();
-  };
-  const doReset = async () => {
-    if (!resetPw || resetPw.length < 4) return flash("Password must be at least 4 characters");
-    const res = await api.post(`/auth/users/${resetTarget.id}/reset-password`, { password: resetPw });
-    if (res.error) return flash("Error: " + res.error);
-    flash(`✓ Password reset for @${resetTarget.username}`);
-    setResetTarget(null); setResetPw("");
-  };
-  const deleteUser = async (u) => {
-    if (!confirm(`Delete @${u.username}? This cannot be undone.`)) return;
-    await api.delete(`/auth/users/${u.id}`);
-    flash(`✓ Deleted @${u.username}`);
-    loadUsers();
-  };
-
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "Never";
-
-  return (
-    <div style={{ padding:28, maxWidth:860 }}>
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-        <div>
-          <div className="bc" style={{ fontSize:24, fontWeight:900, letterSpacing:"0.05em" }}>USER MANAGEMENT</div>
-          <div style={{ fontSize:12, color:"var(--t3)", marginTop:2 }}>Create accounts, reset passwords, ban/unban players</div>
-        </div>
-        <button className="btn btn-acc" style={{ marginLeft:"auto" }} onClick={()=>setShowCreate(true)}>+ Create Account</button>
-      </div>
-
-      {/* Feedback banner */}
-      {feedback && (
-        <div style={{ background: feedback.startsWith("Error") ? "rgba(255,70,85,0.12)" : "rgba(0,200,120,0.12)",
-          border: `1px solid ${feedback.startsWith("Error") ? "rgba(255,70,85,0.3)" : "rgba(0,200,120,0.3)"}`,
-          borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:16,
-          color: feedback.startsWith("Error") ? "#ff6b7a" : "#4caf7d" }}>
-          {feedback}
-        </div>
-      )}
-
-      {/* User table */}
-      <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 100px 120px 130px", gap:0,
-          padding:"10px 16px", borderBottom:"1px solid var(--b1)",
-          fontSize:10, fontWeight:700, letterSpacing:"0.1em", color:"var(--t3)", textTransform:"uppercase" }}>
-          <div>User</div><div>Role</div><div>Status</div><div>Last Login</div><div style={{ textAlign:"right" }}>Actions</div>
-        </div>
-        {loading ? (
-          <div style={{ padding:24, color:"var(--t3)", fontSize:13, textAlign:"center" }}>Loading…</div>
-        ) : users.length === 0 ? (
-          <div style={{ padding:24, color:"var(--t3)", fontSize:13, textAlign:"center" }}>No users found</div>
-        ) : users.map(u => (
-          <div key={u.id} style={{ display:"grid", gridTemplateColumns:"1fr 80px 100px 120px 130px",
-            padding:"12px 16px", borderBottom:"1px solid var(--b1)", alignItems:"center",
-            background: u.is_banned ? "rgba(255,70,85,0.04)" : "transparent" }}>
-            {/* User */}
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:32, height:32, borderRadius:"50%", background: u.role==="admin" ? "var(--acc)" : "var(--s3)",
-                display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700,
-                color: u.role==="admin" ? "#080a10" : "var(--t2)", flexShrink:0 }}>
-                {u.username[0].toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize:13, fontWeight:600, color:"var(--t1)" }}>@{u.username}</div>
-                <div style={{ fontSize:10, color:"var(--t3)" }}>Joined {fmtDate(u.created_at)}</div>
-              </div>
-            </div>
-            {/* Role */}
-            <div>
-              <span className="chip" style={{ background: u.role==="admin" ? "rgba(var(--acc-rgb),0.15)" : "var(--s3)",
-                color: u.role==="admin" ? "var(--acc)" : "var(--t2)", fontSize:10, padding:"2px 8px" }}>
-                {u.role}
-              </span>
-            </div>
-            {/* Status */}
-            <div>
-              <span className="chip" style={{ background: u.is_banned ? "rgba(255,70,85,0.15)" : "rgba(0,200,120,0.1)",
-                color: u.is_banned ? "#ff6b7a" : "#4caf7d", fontSize:10, padding:"2px 8px" }}>
-                {u.is_banned ? "Banned" : "Active"}
-              </span>
-            </div>
-            {/* Last login */}
-            <div style={{ fontSize:11, color:"var(--t3)" }}>{fmtDate(u.last_login)}</div>
-            {/* Actions */}
-            <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-              <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11 }}
-                onClick={()=>{ setResetTarget(u); setResetPw(""); }}>
-                🔑 Reset
-              </button>
-              {u.role !== "admin" && (
-                u.is_banned
-                  ? <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#4caf7d" }} onClick={()=>unban(u)}>Unban</button>
-                  : <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#ff6b7a" }} onClick={()=>ban(u)}>Ban</button>
-              )}
-              {u.role !== "admin" && (
-                <button className="btn btn-ghost" style={{ padding:"3px 9px", fontSize:11, color:"#ff6b7a" }} onClick={()=>deleteUser(u)}>🗑</button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Create user modal */}
-      {showCreate && (
-        <Modal onClose={()=>setShowCreate(false)} title="Create Account">
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div>
-              <div className="label-sm" style={{ marginBottom:5 }}>Username</div>
-              <input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))}
-                placeholder="e.g. player1" style={{ width:"100%" }}/>
-            </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:5 }}>Password</div>
-              <input type="password" value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}
-                placeholder="Minimum 4 characters" style={{ width:"100%" }}/>
-            </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:5 }}>Role</div>
-              <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} style={{ width:"100%" }}>
-                <option value="player">Player</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
-              <button className="btn btn-ghost" onClick={()=>setShowCreate(false)}>Cancel</button>
-              <button className="btn btn-acc" onClick={createUser}>Create Account</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Reset password modal */}
-      {resetTarget && (
-        <Modal onClose={()=>setResetTarget(null)} title={`Reset Password — @${resetTarget.username}`}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ fontSize:12, color:"var(--t2)" }}>
-              Set a new password for <strong>@{resetTarget.username}</strong>. They should change it after logging in.
-            </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:5 }}>New Password</div>
-              <input type="password" value={resetPw} onChange={e=>setResetPw(e.target.value)}
-                placeholder="Minimum 4 characters" style={{ width:"100%" }}/>
-            </div>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-              <button className="btn btn-ghost" onClick={()=>setResetTarget(null)}>Cancel</button>
-              <button className="btn btn-acc" onClick={doReset}>Reset Password</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════
    APP SHELL
 ════════════════════════════════════════ */
 export default function BzTracker() {
-  const [authUser,  setAuthUser]  = useState(null);   // null = not checked yet
-  const [authReady, setAuthReady] = useState(false);  // true once we've verified token
-  const [page,      setPage]      = useState("dashboard");
-  const [stratTab,  setStratTab]  = useState("playbooks");
-  const [players,   setPlayers]   = useState(PLAYERS_DEFAULT);
+  const [page, setPage]         = useState("dashboard");
+  const [stratTab, setStratTab] = useState("raw");
+  const [players, setPlayers]   = useState(PLAYERS_DEFAULT);
 
-  // On mount: verify stored token
-  useEffect(() => {
-    const token = localStorage.getItem("ticra_token");
-    if (!token) { setAuthReady(true); return; }
-    fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (data.id) setAuthUser(data);
-        else localStorage.removeItem("ticra_token");
-      })
-      .catch(() => localStorage.removeItem("ticra_token"))
-      .finally(() => setAuthReady(true));
-  }, []);
-
-  useEffect(() => {
-    if (authUser) api.get("/api/players").then(d => { if (Array.isArray(d)) setPlayers(d); }).catch(() => {});
-  }, [authUser]);
-
-  const handleLogin  = (user) => { setAuthUser(user); setPage("dashboard"); };
-  const handleLogout = () => {
-    localStorage.removeItem("ticra_token");
-    setAuthUser(null);
-    setPage("dashboard");
-  };
-
-  // Not yet checked
-  if (!authReady) return <div style={{ width:"100vw", height:"100vh", background:"var(--bg)", display:"flex", alignItems:"center", justifyContent:"center" }}><style>{css}</style><div style={{ color:"var(--t3)", fontSize:13 }}>Loading…</div></div>;
-
-  // Not logged in
-  if (!authUser) return <LoginScreen onLogin={handleLogin}/>;
-
-  const isAdmin = authUser.role === "admin";
+  useEffect(()=>{ api.get("/api/players").then(d=>{ if(Array.isArray(d)) setPlayers(d); }).catch(()=>{}); }, []);
 
   const renderPage = () => {
     switch(page) {
@@ -537,12 +197,9 @@ export default function BzTracker() {
       case "vod":       return <VodReview/>;
       case "tasks":     return <Tasks players={players} setPlayers={setPlayers}/>;
       case "calendar":  return <CalendarPage/>;
-      case "admin":     return isAdmin ? <AdminPanel/> : <Dashboard setPage={setPage}/>;
       default:          return <Dashboard setPage={setPage}/>;
     }
   };
-
-  const initials = authUser.username.slice(0,2).toUpperCase();
 
   return (
     <>
@@ -561,7 +218,6 @@ export default function BzTracker() {
               </div>
             </div>
           </div>
-
           <nav style={{ flex:1, overflowY:"auto", padding:"10px 8px" }}>
             {NAV.map(n=>(
               <div key={n.key} className={`nav-item${page===n.key?" on":""}`} onClick={()=>setPage(n.key)} style={{ marginBottom:2 }}>
@@ -570,31 +226,14 @@ export default function BzTracker() {
                 {n.live && <div className="ldot"/>}
               </div>
             ))}
-            {/* Admin-only nav item */}
-            {isAdmin && (
-              <div className={`nav-item${page==="admin"?" on":""}`} onClick={()=>setPage("admin")} style={{ marginBottom:2, marginTop:8, borderTop:"1px solid var(--b1)", paddingTop:10 }}>
-                <span style={{ fontSize:14, width:18, textAlign:"center", flexShrink:0 }}>⚙</span>
-                <span style={{ flex:1 }}>User Management</span>
-              </div>
-            )}
           </nav>
-
-          {/* User footer */}
-          <div style={{ borderTop:"1px solid var(--b1)", padding:"10px 10px" }}>
+          <div style={{ borderTop:"1px solid var(--b1)", padding:"12px 10px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:30, height:30, borderRadius:"50%", background: isAdmin ? "var(--acc)" : "var(--s3)",
-                display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700,
-                color: isAdmin ? "#080a10" : "var(--t2)", flexShrink:0 }}>
-                {initials}
+              <div style={{ width:30, height:30, borderRadius:"50%", background:"var(--acc)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#080a10", flexShrink:0 }}>CO</div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:600 }}>Coach</div>
+                <div style={{ fontSize:10, color:"var(--t3)" }}>coach</div>
               </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:12, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>@{authUser.username}</div>
-                <div style={{ fontSize:10, color:"var(--t3)" }}>{authUser.role}</div>
-              </div>
-              <button onClick={handleLogout} title="Sign out"
-                style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:16, padding:"2px 4px", flexShrink:0, lineHeight:1 }}>
-                ⏻
-              </button>
             </div>
           </div>
         </aside>
@@ -918,20 +557,24 @@ function ScrimLog({ setPage }) {
 ════════════════════════════════════════ */
 function Strategy({ tab, setTab }) {
   const TABS = [
+    { key:"raw",          label:"Raw Database" },
     { key:"playbooks",    label:"Playbooks" },
     { key:"gameplans",    label:"Game Plans" },
     { key:"compositions", label:"Compositions" },
+    { key:"lineups",      label:"Lineups" },
   ];
   return (
     <div style={{ padding:"28px 32px" }}>
       <div className="bc" style={{ fontSize:38, fontWeight:900, letterSpacing:"0.04em", marginBottom:4 }}>STRATEGY</div>
       <div style={{ color:"var(--t2)", fontSize:13, marginBottom:20 }}>Tactical hub — strats, playbooks, and match prep</div>
-      <div className="tab-bar" style={{ maxWidth:380, marginBottom:24 }}>
+      <div className="tab-bar" style={{ maxWidth:580, marginBottom:24 }}>
         {TABS.map(t=><button key={t.key} className={`tab${tab===t.key?" on":""}`} onClick={()=>setTab(t.key)}>{t.label}</button>)}
       </div>
+      {tab==="raw"          && <RawDB/>}
       {tab==="playbooks"    && <Playbooks/>}
       {tab==="gameplans"    && <GamePlans/>}
       {tab==="compositions" && <Compositions/>}
+      {tab==="lineups"      && <Lineups/>}
     </div>
   );
 }
@@ -1012,407 +655,50 @@ function RawDB() {
 }
 
 function Playbooks() {
-  const [pbs, setPbs]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [sel, setSel]     = useState(null);
-  const [blobUrl, setBlobUrl] = useState(null);
-  const [modal, setModal] = useState(false);
-  const [delConfirm, setDelConfirm] = useState(null);
-  const [form, setForm]   = useState({ name:"", map:"Ascent", desc:"" });
-  const fileRef = React.useRef();
-
-  useEffect(() => {
-    api.get("/api/playbooks").then(data => {
-      const parsed = (Array.isArray(data) ? data : []).map(p => ({
-        id: p.id,
-        name: p.name || p.title || "Playbook",
-        map: p.map || "Ascent",
-        desc: p.desc || "",
-        pdfUrl: p.pdf_url || p.pdfUrl || "",
-        fileName: p.file_name || p.fileName || ""
-      }));
-      setPbs(parsed);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  }, []);
-
-  // Convert base64 → blob URL whenever selection changes (blob URLs work in iframes, data: URLs don't)
-  React.useEffect(() => {
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
-    if (!sel?.pdfUrl) { setBlobUrl(null); return; }
-    try {
-      const base64 = sel.pdfUrl.split(",")[1];
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      setBlobUrl(URL.createObjectURL(blob));
-    } catch { setBlobUrl(null); }
-  }, [sel?.id]);
-
-  const handleUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file || file.type !== "application/pdf") return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result;
-      const nb = { id: String(Date.now()), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: base64, fileName: file.name };
-      await api.post("/api/playbooks", nb);
-      setPbs(prev => [...prev, nb]);
-      setSel(nb);
-      setModal(false);
-      setForm({ name:"", map:"Ascent", desc:"" });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const deletePb = async (id) => {
-    await api.delete(`/api/playbooks/${id}`);
-    setPbs(p => p.filter(x => x.id !== id));
-    if(sel?.id === id) setSel(null);
-    setDelConfirm(null);
-  };
-
-  return (
-    <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
-      <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-        <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
-          {pbs.map((p)=>(
-            <div key={p.id} style={{ position:"relative" }}>
-              <div onClick={()=>setSel(p)} style={{ padding:"11px 13px", paddingRight:34, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===p.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===p.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
-                <div style={{ fontWeight:600, marginBottom:4, fontSize:13 }}>{p.name}</div>
-                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                  <span className="chip chip-blue">{p.map}</span>
-                  <span style={{ fontSize:10, color:"var(--t3)" }}>PDF</span>
-                </div>
-                {p.desc && <div style={{ fontSize:11, color:"var(--t2)", marginTop:3, lineHeight:1.4 }}>{p.desc}</div>}
+  const [pbs, setPbs] = useState([]);
+  const [sel, setSel] = useState(null);
+  if (pbs.length === 0 || sel === null) {
+    return (
+      <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
+        <div>
+          <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {pbs.map((p,i)=>(
+              <div key={i} onClick={()=>setSel(i)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel===i?"var(--s3)":"var(--s1)", border:`1px solid ${sel===i?"var(--b3)":"var(--b1)"}` }}>
+                <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{p.name}</div>
+                <div style={{ display:"flex", gap:4 }}>{p.comp.map((a,j)=><AgentBadge key={j} name={a} size={20}/>)}</div>
               </div>
-              <button onClick={()=>setDelConfirm(p)} style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px" }}>×</button>
-            </div>
-          ))}
-        </div>
-        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={()=>setModal(true)}>+ Upload Playbook PDF</button>
-        <input ref={fileRef} type="file" accept="application/pdf" style={{ display:"none" }} onChange={handleUpload}/>
-      </div>
-
-      {sel ? (
-        <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div>
-              <div className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.name}</div>
-              <div style={{ display:"flex", gap:6, marginTop:4 }}>
-                <span className="chip chip-blue">{sel.map}</span>
-                {sel.desc && <span style={{ fontSize:12, color:"var(--t2)" }}>{sel.desc}</span>}
-              </div>
-            </div>
-            <button className="btn btn-red" onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
+            ))}
+            <button className="btn btn-sub" style={{ marginTop:4 }} onClick={()=>{ const nb={name:`Playbook ${pbs.length+1}`,map:"Ascent",comp:[]}; setPbs(prev=>[...prev,nb]); setSel(pbs.length); }}>+ New Playbook</button>
           </div>
-          <iframe src={blobUrl||""} style={{ flex:1, border:"none", width:"100%", minHeight:500 }} title={sel.name}/>
         </div>
-      ) : (
         <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
           <div style={{ textAlign:"center", color:"var(--t3)" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>📋</div>
-            <div className="bc" style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>{pbs.length===0?"No Playbooks Yet":"Select a Playbook"}</div>
-            <div style={{ fontSize:13 }}>{pbs.length===0?"Upload a PDF playbook to get started":"Click a playbook on the left to view it"}</div>
+            <div style={{ fontSize:26, marginBottom:8 }}>⬡</div>
+            <div style={{ fontSize:13 }}>{pbs.length===0?"No playbooks yet — create one to get started":"Select a playbook to view"}</div>
           </div>
         </div>
-      )}
-
-      {modal && (
-        <Modal onClose={()=>setModal(false)} title="Upload Playbook PDF">
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Playbook Name</div><input type="text" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Ascent Attack Executes"/></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Map</div><select value={form.map} onChange={e=>setForm(f=>({...f,map:e.target.value}))}>{MAPS.map(m=><option key={m}>{m}</option>)}</select></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Description (optional)</div><input type="text" value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Short description"/></div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={()=>fileRef.current?.click()}>Choose PDF File</button>
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-            </div>
-            <div style={{ fontSize:11, color:"var(--t3)", textAlign:"center" }}>Only PDF files are supported</div>
-          </div>
-        </Modal>
-      )}
-
-      {delConfirm && (
-        <Modal onClose={()=>setDelConfirm(null)} title="Delete Playbook?">
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.name}"</strong>? This cannot be undone.</div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>deletePb(delConfirm.id)}>🗑 Yes, Delete</button>
-              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-/* ─ Google Docs-style Rich Editor ─ */
-function DocsEditor({ value, onChange }) {
-  const editorRef = React.useRef(null);
-  const [selImg, setSelImg] = useState(null); // selected image id
-  const [dragState, setDragState] = useState(null); // {id, startX, startY, origX, origY}
-  const [resizeState, setResizeState] = useState(null); // {id, startX, origW}
-  const isComposing = React.useRef(false);
-
-  // Serialize editor DOM → value object {html, images:[{id,src,x,y,w,float}]}
-  const serialize = () => {
-    const el = editorRef.current;
-    if (!el) return value;
-    const imgs = [];
-    el.querySelectorAll("img[data-imgid]").forEach(img => {
-      imgs.push({
-        id: img.dataset.imgid,
-        src: img.src,
-        w: parseInt(img.style.width)||320,
-        float: img.style.float||"none",
-      });
-    });
-    return { html: el.innerHTML, images: imgs };
-  };
-
-  const commit = () => { onChange(serialize()); };
-
-  // Paste image handler
-  const onPaste = (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const id = `img_${Date.now()}`;
-          const imgEl = document.createElement("img");
-          imgEl.src = ev.target.result;
-          imgEl.dataset.imgid = id;
-          imgEl.style.width = "340px";
-          imgEl.style.display = "inline-block";
-          imgEl.style.verticalAlign = "top";
-          imgEl.style.margin = "6px 10px 6px 0";
-          imgEl.style.borderRadius = "6px";
-          imgEl.style.cursor = "pointer";
-          imgEl.style.border = "2px solid transparent";
-          imgEl.contentEditable = "false";
-          // Insert at cursor
-          const sel = window.getSelection();
-          if (sel.rangeCount) {
-            const range = sel.getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(imgEl);
-            range.setStartAfter(imgEl);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          } else {
-            editorRef.current.appendChild(imgEl);
-          }
-          commit();
-        };
-        reader.readAsDataURL(file);
-        return;
-      }
-    }
-  };
-
-  // Click on image to select it
-  const onEditorClick = (e) => {
-    const img = e.target.closest("img[data-imgid]");
-    if (img) {
-      e.preventDefault();
-      setSelImg(img.dataset.imgid);
-      // highlight
-      editorRef.current.querySelectorAll("img[data-imgid]").forEach(i => {
-        i.style.border = i.dataset.imgid === img.dataset.imgid ? "2px solid var(--acc)" : "2px solid transparent";
-        i.style.outline = "none";
-      });
-    } else {
-      setSelImg(null);
-      editorRef.current.querySelectorAll("img[data-imgid]").forEach(i => { i.style.border = "2px solid transparent"; });
-    }
-    commit();
-  };
-
-  // Drag image
-  const startDrag = (e, id) => {
-    e.preventDefault();
-    const img = editorRef.current.querySelector(`img[data-imgid="${id}"]`);
-    if (!img) return;
-    const rect = img.getBoundingClientRect();
-    setDragState({ id, startX: e.clientX, startY: e.clientY, img, origFloat: img.style.float });
-    img.style.opacity = "0.7";
-  };
-
-  // Resize image
-  const startResize = (e, id, edge) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const img = editorRef.current.querySelector(`img[data-imgid="${id}"]`);
-    if (!img) return;
-    setResizeState({ id, startX: e.clientX, origW: img.offsetWidth, img, edge });
-  };
-
-  React.useEffect(() => {
-    if (!dragState && !resizeState) return;
-
-    const onMove = (e) => {
-      if (resizeState) {
-        const { img, startX, origW, edge } = resizeState;
-        const delta = edge === "left" ? startX - e.clientX : e.clientX - startX;
-        const newW = Math.max(80, Math.min(860, origW + delta));
-        img.style.width = newW + "px";
-        return;
-      }
-      if (dragState) {
-        const { img, startX, startY } = dragState;
-        const dx = e.clientX - startX;
-        // Determine float based on horizontal position relative to editor
-        const editorRect = editorRef.current.getBoundingClientRect();
-        const imgRect = img.getBoundingClientRect();
-        const centerX = imgRect.left + imgRect.width/2 + dx;
-        const relX = (centerX - editorRect.left) / editorRect.width;
-        if (relX < 0.35) {
-          img.style.float = "left";
-          img.style.margin = "6px 14px 6px 0";
-        } else if (relX > 0.65) {
-          img.style.float = "right";
-          img.style.margin = "6px 0 6px 14px";
-        } else {
-          img.style.float = "none";
-          img.style.margin = "6px 10px 6px 0";
-          img.style.display = "block";
-          img.style.marginLeft = "auto";
-          img.style.marginRight = "auto";
-        }
-      }
-    };
-
-    const onUp = () => {
-      if (dragState) { dragState.img.style.opacity = "1"; }
-      setDragState(null);
-      setResizeState(null);
-      commit();
-    };
-
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [dragState, resizeState]);
-
-  // Delete selected image with Backspace/Delete
-  const onKeyDown = (e) => {
-    if ((e.key === "Backspace" || e.key === "Delete") && selImg) {
-      const img = editorRef.current.querySelector(`img[data-imgid="${selImg}"]`);
-      if (img && document.activeElement !== editorRef.current) {
-        e.preventDefault();
-        img.remove();
-        setSelImg(null);
-        commit();
-      }
-    }
-  };
-
-  // Format commands
-  const fmt = (cmd, val) => { document.execCommand(cmd, false, val); editorRef.current.focus(); commit(); };
-
-  const lastLoadedHtml = React.useRef(null);
-
-  // Sync HTML into DOM only when switching to a different doc (not from our own commits)
-  React.useEffect(() => {
-    if (editorRef.current && value?.html !== undefined && value.html !== lastLoadedHtml.current) {
-      lastLoadedHtml.current = value.html;
-      editorRef.current.innerHTML = value.html || "";
-    }
-  }, [value?.html]);
-
-  const TOOLBAR_BTN = (label, action, title) => (
-    <button title={title||label} onMouseDown={e=>{e.preventDefault(); action();}}
-      style={{ padding:"4px 9px", background:"var(--s2)", border:"1px solid var(--b2)", borderRadius:"var(--r)", color:"var(--t1)", fontSize:12, fontWeight:600, cursor:"pointer", lineHeight:1.4 }}>
-      {label}
-    </button>
-  );
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", gap:0, background:"#1a1d28", borderRadius:"var(--r2)", border:"1px solid var(--b2)", overflow:"hidden" }}>
-      {/* Toolbar */}
-      <div style={{ display:"flex", alignItems:"center", gap:4, padding:"7px 12px", borderBottom:"1px solid var(--b1)", background:"var(--s2)", flexWrap:"wrap" }}>
-        {TOOLBAR_BTN("B", ()=>fmt("bold"), "Bold")}
-        {TOOLBAR_BTN("I", ()=>fmt("italic"), "Italic")}
-        {TOOLBAR_BTN("U", ()=>fmt("underline"), "Underline")}
-        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
-        {TOOLBAR_BTN("H1", ()=>fmt("formatBlock","h2"), "Heading")}
-        {TOOLBAR_BTN("H2", ()=>fmt("formatBlock","h3"), "Subheading")}
-        {TOOLBAR_BTN("¶", ()=>fmt("formatBlock","p"), "Paragraph")}
-        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
-        {TOOLBAR_BTN("• List", ()=>fmt("insertUnorderedList"), "Bullet list")}
-        {TOOLBAR_BTN("1. List", ()=>fmt("insertOrderedList"), "Numbered list")}
-        <div style={{ width:1, height:18, background:"var(--b2)", margin:"0 2px" }}/>
-        {TOOLBAR_BTN("🎨", ()=>{ const c=prompt("Hex color (e.g. #ff5252):","#d4ff1e"); if(c) fmt("foreColor",c); }, "Text color")}
-        {TOOLBAR_BTN("⬛ Hi", ()=>{ const c=prompt("Highlight color:","#ffab4040"); if(c) fmt("hiliteColor",c); }, "Highlight")}
-        <div style={{ flex:1 }}/>
-        <span style={{ fontSize:10, color:"var(--t3)" }}>Ctrl+V to paste images · drag to reposition · drag edge to resize</span>
       </div>
-
-      {/* Editable area */}
-      <div style={{ flex:1, overflowY:"auto", padding:"24px 32px", background:"#13151f" }}>
-        {/* Fake doc page */}
-        <div style={{ maxWidth:760, margin:"0 auto", background:"#1c1f2e", borderRadius:8, minHeight:600, padding:"40px 48px", boxShadow:"0 4px 32px rgba(0,0,0,0.4)", position:"relative" }}
-          tabIndex={-1} onKeyDown={onKeyDown}>
-          <div
-            ref={editorRef}
-            contentEditable
-            suppressContentEditableWarning
-            onInput={commit}
-            onPaste={onPaste}
-            onClick={onEditorClick}
-            onCompositionStart={()=>isComposing.current=true}
-            onCompositionEnd={()=>{ isComposing.current=false; commit(); }}
-            className="docs-editor"
-            style={{
-              minHeight: 520,
-              outline:"none",
-              color:"var(--t1)",
-              fontSize:14,
-              lineHeight:1.9,
-              fontFamily:"'Barlow',sans-serif",
-              caretColor:"var(--acc)",
-            }}
-          />
-          {/* Image overlay controls when image selected */}
-          {selImg && (() => {
-            const img = editorRef.current?.querySelector(`img[data-imgid="${selImg}"]`);
-            if (!img) return null;
-            const rect = img.getBoundingClientRect();
-            const containerRect = editorRef.current.closest("[tabindex]").getBoundingClientRect();
-            const top = rect.top - containerRect.top;
-            const left = rect.left - containerRect.left;
-            const w = rect.width;
-            const h = rect.height;
-            return (
-              <div style={{ position:"absolute", top, left, width:w, height:h, pointerEvents:"none", zIndex:20 }}>
-                {/* Drag handle top */}
-                <div title="Drag to move" onMouseDown={e=>startDrag(e,selImg)} style={{ position:"absolute", top:-1, left:"50%", transform:"translateX(-50%)", width:40, height:14, background:"var(--acc)", borderRadius:"4px 4px 0 0", cursor:"move", pointerEvents:"all", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <span style={{ fontSize:9, color:"#080a10", fontWeight:900, letterSpacing:1 }}>⠿</span>
-                </div>
-                {/* Left resize */}
-                <div onMouseDown={e=>startResize(e,selImg,"left")} style={{ position:"absolute", left:-5, top:"50%", transform:"translateY(-50%)", width:10, height:32, background:"var(--acc)", borderRadius:3, cursor:"ew-resize", pointerEvents:"all" }}/>
-                {/* Right resize */}
-                <div onMouseDown={e=>startResize(e,selImg,"right")} style={{ position:"absolute", right:-5, top:"50%", transform:"translateY(-50%)", width:10, height:32, background:"var(--acc)", borderRadius:3, cursor:"ew-resize", pointerEvents:"all" }}/>
-                {/* Delete */}
-                <div onClick={()=>{ img.remove(); setSelImg(null); commit(); }} style={{ position:"absolute", top:-1, right:-1, width:20, height:20, background:"#ff5252", borderRadius:"0 4px 0 4px", cursor:"pointer", pointerEvents:"all", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <span style={{ fontSize:12, color:"#fff", lineHeight:1 }}>×</span>
-                </div>
-                {/* Size badge */}
-                <div style={{ position:"absolute", bottom:-18, left:"50%", transform:"translateX(-50%)", fontSize:9, background:"var(--acc)", color:"#080a10", padding:"1px 7px", borderRadius:3, whiteSpace:"nowrap", fontFamily:"monospace", fontWeight:700 }}>
-                  {Math.round(w)}px · drag edges to resize
-                </div>
-              </div>
-            );
-          })()}
+    );
+  }
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
+      <div>
+        <div className="label-sm" style={{ marginBottom:8 }}>Playbooks</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {pbs.map((p,i)=>(
+            <div key={i} onClick={()=>setSel(i)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel===i?"var(--s3)":"var(--s1)", border:`1px solid ${sel===i?"var(--b3)":"var(--b1)"}` }}>
+              <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{p.name}</div>
+              <div style={{ display:"flex", gap:4 }}>{p.comp.map((a,j)=><AgentBadge key={j} name={a} size={20}/>)}</div>
+            </div>
+          ))}
+          <button className="btn btn-sub" style={{ marginTop:4 }} onClick={()=>{ const nb={name:`Playbook ${pbs.length+1}`,map:"Ascent",comp:[]}; setPbs(prev=>[...prev,nb]); setSel(pbs.length); }}>+ New Playbook</button>
+        </div>
+      </div>
+      <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
+        <div style={{ textAlign:"center", color:"var(--t3)" }}>
+          <div style={{ fontSize:26, marginBottom:8 }}>⬡</div>
+          <div style={{ fontSize:13 }}>{pbs.length===0?"No playbooks yet — create one to get started":"Select a playbook to view"}</div>
         </div>
       </div>
     </div>
@@ -1420,310 +706,134 @@ function DocsEditor({ value, onChange }) {
 }
 
 function GamePlans() {
-  const [docs, setDocs]    = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [sel, setSel]      = useState(null);
-  const [modal, setModal]  = useState(false);
-  const [delConfirm, setDelConfirm] = useState(null);
-  const [form, setForm]    = useState({ title:"", opp:"", maps:[], side:"atk" });
-  const [docContent, setDocContent] = useState({ html:"", images:[] });
-
-  useEffect(() => {
-    api.get("/api/gameplans").then(data => {
-      const parsed = (Array.isArray(data) ? data : []).map(d => ({
-        ...d,
-        maps: typeof d.maps === "string" ? JSON.parse(d.maps||"[]") : (d.maps||[]),
-        content: typeof d.content === "string" ? JSON.parse(d.content||"{}") : (d.content||{ html:"", images:[] })
-      }));
-      setDocs(parsed);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  }, []);
-
-  React.useEffect(()=>{
-    if (sel) setDocContent(sel.content || { html: sel.body||"", images:[] });
-    else setDocContent({ html:"", images:[] });
-  }, [sel?.id]);
-
-  const saveTimer = React.useRef(null);
-  const selIdRef  = React.useRef(sel?.id);
-  React.useEffect(()=>{ selIdRef.current = sel?.id; }, [sel?.id]);
-
-  const saveContent = (content) => {
-    setDocContent(content);
-    if (!selIdRef.current) return;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setDocs(prev => {
-        const next = prev.map(d => d.id===selIdRef.current ? { ...d, content } : d);
-        const doc = next.find(d=>d.id===selIdRef.current);
-        if(doc) api.put(`/api/gameplans/${selIdRef.current}`, { title:doc.title, content: JSON.stringify(content) });
-        return next;
-      });
-    }, 400);
-  };
-
-  const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
-
-  const create = async () => {
-    if(!form.title.trim()) return;
-    const d = { id:String(Date.now()), ...form, maps: form.maps, date: new Date().toLocaleDateString(), content:{ html:"", images:[] } };
-    await api.post("/api/gameplans", { id:d.id, title:d.title, content: JSON.stringify(d.content) });
-    setDocs(p=>[...p, d]);
-    setSel(d);
-    setModal(false);
-    setForm({ title:"", opp:"", maps:[], side:"atk" });
-  };
-
-  const deleteDoc = async (id) => {
-    await api.delete(`/api/gameplans/${id}`);
-    setDocs(prev => prev.filter(d=>d.id!==id));
-    if(sel?.id===id) setSel(null);
-    setDelConfirm(null);
-  };
-
+  const [docs, setDocs] = useState([]);
+  const [sel, setSel]   = useState(null);
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18, height:"calc(100vh - 200px)" }}>
-      {/* Sidebar */}
-      <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-        <div className="label-sm" style={{ marginBottom:8 }}>Game Plans</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, overflowY:"auto" }}>
+    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:18 }}>
+      <div>
+        <button className="btn btn-acc" style={{ width:"100%", justifyContent:"center", marginBottom:10 }}>+ New Game Plan</button>
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {docs.map(d=>(
-            <div key={d.id} style={{ position:"relative" }}>
-              <div onClick={()=>setSel(d)} style={{ padding:"11px 13px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
-                <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{d.title}</div>
-                <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                  {d.maps?.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
-                  {d.opp && <span className="chip chip-purple">vs {d.opp}</span>}
-                </div>
-                <div style={{ fontSize:11, color:"var(--t3)", marginTop:3 }}>{d.date}</div>
-              </div>
-              <button onClick={()=>setDelConfirm(d)} style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px" }}>×</button>
+            <div key={d.id} onClick={()=>setSel(d)} style={{ padding:"11px 13px", borderRadius:"var(--r2)", cursor:"pointer", background:sel?.id===d.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===d.id?"var(--b3)":"var(--b1)"}` }}>
+              <div style={{ fontWeight:500, marginBottom:5, fontSize:13 }}>{d.title}</div>
+              <div style={{ display:"flex", gap:4 }}>{d.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}</div>
+              <div style={{ fontSize:11, color:"var(--t3)", marginTop:4 }}>{d.date}</div>
             </div>
           ))}
         </div>
-        <button className="btn btn-acc" style={{ marginTop:10, justifyContent:"center" }} onClick={()=>setModal(true)}>+ New Game Plan</button>
       </div>
-
-      {/* Editor area */}
       {sel ? (
-        <div style={{ display:"flex", flexDirection:"column", gap:0, minHeight:0, overflow:"hidden" }}>
-          {/* Doc header */}
-          <div style={{ padding:"12px 16px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", borderRadius:"var(--r2) var(--r2) 0 0", border:"1px solid var(--b1)", marginBottom:0 }}>
+        <div className="card">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
             <div>
-              <div className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.title}</div>
-              <div style={{ display:"flex", gap:6, marginTop:3, alignItems:"center" }}>
-                {sel.maps?.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
-                {sel.side && <span className={`chip ${sel.side==="atk"?"chip-acc":"chip-blue"}`}>{sel.side==="atk"?"ATTACK":"DEFENSE"}</span>}
-                {sel.opp && <span style={{ color:"var(--t3)", fontSize:12 }}>vs {sel.opp}</span>}
-                <span style={{ color:"var(--t3)", fontSize:11 }}>· {sel.date}</span>
+              <div className="bc" style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>{sel.title}</div>
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                {sel.maps.map(m=><span key={m} className="chip chip-blue">{m}</span>)}
+                <span style={{ color:"var(--t3)", fontSize:12 }}>vs {sel.opp} · {sel.date}</span>
               </div>
             </div>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <span style={{ fontSize:11, color:"var(--green)" }}>✓ Auto-saving</span>
-              <button className="btn btn-red" style={{ fontSize:12 }} onClick={()=>setDelConfirm(sel)}>🗑 Delete</button>
-            </div>
+            <button className="btn btn-sub" style={{ fontSize:12 }}>✎ Edit</button>
           </div>
-          {/* Docs editor fills remaining height */}
-          <div style={{ flex:1, minHeight:0, borderRadius:"0 0 var(--r2) var(--r2)", overflow:"hidden" }}>
-            <DocsEditor value={docContent} onChange={saveContent}/>
-          </div>
+          <Divider/>
+          <p style={{ color:"var(--t2)", lineHeight:1.8, fontSize:13 }}>{sel.body}</p>
+          <p style={{ color:"var(--t3)", fontStyle:"italic", marginTop:12, fontSize:12 }}>Add notes, embed videos, tag strategies, @mention players…</p>
         </div>
       ) : (
         <div className="card" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:200 }}>
           <div style={{ textAlign:"center", color:"var(--t3)" }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>🗂</div>
-            <div className="bc" style={{ fontSize:16, fontWeight:700, marginBottom:6 }}>{docs.length===0?"No Game Plans Yet":"Select a Game Plan"}</div>
-            <div style={{ fontSize:13 }}>{docs.length===0?"Create your first game plan to get started":"Click a plan on the left to view it"}</div>
+            <div style={{ fontSize:26, marginBottom:8 }}>☰</div>
+            <div style={{ fontSize:13 }}>{docs.length===0?"No game plans yet — create one to get started":"Select a game plan to view"}</div>
           </div>
         </div>
-      )}
-
-      {modal && (
-        <Modal onClose={()=>setModal(false)} title="New Game Plan">
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div><input type="text" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. vs LOUD — Ascent Game Plan"/></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Opponent (optional)</div><input type="text" value={form.opp} onChange={e=>setForm(f=>({...f,opp:e.target.value}))} placeholder="Team name"/></div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:8 }}>Maps</div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {MAPS.map(m=>(
-                  <button key={m} onClick={()=>toggleMap(m)} style={{ padding:"4px 10px", borderRadius:"var(--r)", fontSize:12, fontWeight:500, background:form.maps.includes(m)?"rgba(79,195,247,0.15)":"var(--s3)", border:`1px solid ${form.maps.includes(m)?"var(--blue)":"var(--b2)"}`, color:form.maps.includes(m)?"var(--blue)":"var(--t2)", cursor:"pointer", transition:"all 0.15s" }}>{m}</button>
-                ))}
-              </div>
-            </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Side Focus</div>
-              <select value={form.side} onChange={e=>setForm(f=>({...f,side:e.target.value}))}>
-                <option value="atk">Attack</option><option value="def">Defense</option><option value="both">Both</option>
-              </select>
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create}>Create Game Plan</button>
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {delConfirm && (
-        <Modal onClose={()=>setDelConfirm(null)} title="Delete Game Plan?">
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.title}"</strong>? This cannot be undone.</div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>deleteDoc(delConfirm.id)}>🗑 Yes, Delete</button>
-              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
       )}
     </div>
   );
 }
 
 function Compositions() {
-  const [comps, setComps]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal]     = useState(false);
-  const [delConfirm, setDelConfirm] = useState(null);
-  const [form, setForm]       = useState({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
-  const ROLES = ["Duelist","Initiator","Controller","Sentinel"];
-
-  useEffect(() => {
-    api.get("/api/compositions").then(data => {
-      const parsed = (Array.isArray(data) ? data : []).map(c => {
-        const roles = typeof c.roles === "string" ? JSON.parse(c.roles||"{}") : (c.roles||{});
-        return {
-          id: c.id,
-          map: c.map,
-          name: roles.name || c.map + " Comp",
-          agents: roles.agents || [],
-          players: roles.players || []
-        };
-      });
-      setComps(parsed);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  }, []);
-
-  const toggleAgent = ag => {
-    setForm(f=>{
-      if(f.agents.includes(ag.name)) return { ...f, agents:f.agents.filter(a=>a!==ag.name) };
-      if(f.agents.length>=5) return f;
-      return { ...f, agents:[...f.agents, ag.name] };
-    });
-  };
-
-  const create = async () => {
-    if(!form.agents.length) return;
-    const c = { id:String(Date.now()), map:form.map, name:form.name||`${form.map} Comp`, agents:form.agents, players:form.players };
-    await api.post("/api/compositions", { id:c.id, map:c.map, roles: JSON.stringify({ name:c.name, agents:c.agents, players:c.players }) });
-    setComps(p=>[...p,c]);
-    setModal(false);
-    setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
-  };
-
-  const del = id => { setDelConfirm(comps.find(c=>c.id===id)); };
-
+  const [comps, setComps] = useState([]);
   return (
     <div>
-      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>{ setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] }); setModal(true); }}>+ New Composition</button>
+      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>setComps(p=>[...p,{map:"Ascent",agents:[],players:[]}])}>+ New Composition</button>
       {comps.length===0 ? (
         <div className="card" style={{ textAlign:"center", padding:"48px 20px" }}>
-          <div style={{ fontSize:32, marginBottom:12, color:"var(--t3)" }}>⬡</div>
+          <div style={{ fontSize:26, marginBottom:8, color:"var(--t3)" }}>⬡</div>
           <div className="bc" style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>No Compositions Yet</div>
           <div style={{ color:"var(--t2)", fontSize:13 }}>Create a composition to define your agent picks per map</div>
         </div>
       ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:14 }}>
-          {comps.map(c=>(
-            <div key={c.id} className="card" style={{ position:"relative" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14, alignItems:"flex-start" }}>
-                <div>
-                  <span className="bc" style={{ fontSize:20, fontWeight:700, display:"block" }}>{c.name}</span>
-                  <span className="chip chip-blue" style={{ marginTop:4 }}>{c.map}</span>
-                </div>
-                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>del(c.id)}>✕</button>
-              </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {c.agents.map((ag,j)=>{
-                  const agData = AGENTS.find(a=>a.name===ag);
-                  return (
-                    <div key={j} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                      <div style={{ width:44, height:44, borderRadius:"var(--r)", background:agData?.bg||"#141820", border:`1px solid ${agData?.color||"#333"}40`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                        <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:agData?.color||"#888" }}>{ag.slice(0,3).toUpperCase()}</span>
-                      </div>
-                      <span style={{ fontSize:10, color:"var(--t2)", fontWeight:500 }}>{ag}</span>
-                      {c.players[j] && <span style={{ fontSize:10, color:"var(--t3)" }}>{c.players[j]}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid var(--b1)", display:"flex", gap:6, flexWrap:"wrap" }}>
-                {c.agents.map(ag=>{
-                  const agData = AGENTS.find(a=>a.name===ag);
-                  return agData ? <span key={ag} className="chip" style={{ background:`${agData.color}18`, color:agData.color, border:`1px solid ${agData.color}30` }}>{agData.role}</span> : null;
-                }).filter((v,i,a)=>a.findIndex(x=>x?.key===v?.key)===i)}
-              </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
+        {comps.map((c,i)=>(
+          <div key={i} className="card">
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
+              <span className="bc" style={{ fontSize:20, fontWeight:700 }}>{c.map}</span>
+              <button className="btn btn-ghost" style={{ fontSize:11 }}>✎ Edit</button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {modal && (
-        <Modal onClose={()=>setModal(false)} title="New Composition">
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div><div className="label-sm" style={{ marginBottom:6 }}>Map</div><select value={form.map} onChange={e=>setForm(f=>({...f,map:e.target.value}))}>{MAPS.map(m=><option key={m}>{m}</option>)}</select></div>
-              <div><div className="label-sm" style={{ marginBottom:6 }}>Comp Name (optional)</div><input type="text" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Main Comp"/></div>
-            </div>
-            <div>
-              <div className="label-sm" style={{ marginBottom:8 }}>Pick Agents ({form.agents.length}/5)</div>
-              {ROLES.map(role=>(
-                <div key={role} style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"var(--t3)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>{role}</div>
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                    {AGENTS.filter(a=>a.role===role).map(ag=>{
-                      const picked = form.agents.includes(ag.name);
-                      return (
-                        <button key={ag.name} onClick={()=>toggleAgent(ag)} style={{ padding:"5px 10px", borderRadius:"var(--r)", fontSize:12, fontWeight:600, background:picked?`${ag.color}22`:"var(--s3)", border:`1px solid ${picked?ag.color:"var(--b2)"}`, color:picked?ag.color:"var(--t2)", cursor:"pointer", transition:"all 0.15s" }}>{ag.name}</button>
-                      );
-                    })}
-                  </div>
+            <div style={{ display:"flex", gap:10 }}>
+              {c.agents.map((ag,j)=>(
+                <div key={j} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                  <AgentBadge name={ag} size={36}/>
+                  <span style={{ fontSize:10, color:"var(--t2)" }}>{ag}</span>
+                  <span style={{ fontSize:10, color:"var(--t3)" }}>{c.players[j]}</span>
                 </div>
               ))}
             </div>
-            {form.agents.length>0 && (
-              <div>
-                <div className="label-sm" style={{ marginBottom:8 }}>Assign Players (optional)</div>
-                {form.agents.map((ag,i)=>(
-                  <div key={ag} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-                    <span style={{ width:80, fontSize:12, color:"var(--t2)" }}>{ag}</span>
-                    <input type="text" value={form.players[i]||""} onChange={e=>setForm(f=>{ const p=[...f.players]; p[i]=e.target.value; return {...f,players:p}; })} placeholder="Player IGN" style={{ flex:1 }}/>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={create} disabled={form.agents.length===0}>Create Composition</button>
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-            </div>
           </div>
-        </Modal>
-      )}
-
-      {delConfirm && (
-        <Modal onClose={()=>setDelConfirm(null)} title="Delete Composition?">
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.name}"</strong>? This cannot be undone.</div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={async ()=>{ await api.delete(`/api/compositions/${delConfirm.id}`); setComps(p=>p.filter(c=>c.id!==delConfirm.id)); setDelConfirm(null); }}>🗑 Yes, Delete</button>
-              <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
+        ))}
+      </div>
       )}
     </div>
   );
 }
 
+function Lineups() {
+  const [lus, setLus] = useState([]);
+  return (
+    <div>
+      <button className="btn btn-acc" style={{ marginBottom:18 }} onClick={()=>setLus(p=>[...p,{agent:"Sova",map:"Ascent",name:"New Lineup",from:"",land:""}])}>+ Add Lineup</button>
+      {lus.length===0 ? (
+        <div className="card" style={{ textAlign:"center", padding:"48px 20px" }}>
+          <div style={{ fontSize:26, marginBottom:8, color:"var(--t3)" }}>◎</div>
+          <div className="bc" style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>No Lineups Yet</div>
+          <div style={{ color:"var(--t2)", fontSize:13 }}>Add lineups to track ability throws and landing spots</div>
+        </div>
+      ) : (
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))", gap:14 }}>
+        {lus.map((l,i)=>{
+          const ag = AGENTS.find(a=>a.name===l.agent);
+          return (
+            <div key={i} className="card" style={{ cursor:"pointer" }}>
+              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                <AgentBadge name={l.agent} size={36}/>
+                <div>
+                  <div style={{ fontWeight:600, marginBottom:5 }}>{l.name}</div>
+                  <div style={{ display:"flex", gap:5 }}>
+                    <span className="chip chip-blue">{l.map}</span>
+                    <span className="chip chip-purple">{l.agent}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ height:96, background:"var(--s2)", borderRadius:"var(--r)", border:"1px solid var(--b2)", position:"relative", overflow:"hidden", marginBottom:10 }}>
+                <div style={{ position:"absolute", inset:0, opacity:0.06, background:`radial-gradient(circle at 40% 30%, ${ag?.color}, transparent 60%)` }}/>
+                <div style={{ position:"absolute", width:9, height:9, background:ag?.color||"#fff", borderRadius:"50%", top:"30%", left:"40%", boxShadow:`0 0 8px ${ag?.color}` }}/>
+                <div style={{ position:"absolute", width:8, height:8, background:"var(--acc)", borderRadius:"50%", top:"68%", left:"72%", boxShadow:"0 0 8px var(--acc)" }}/>
+                <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%" }}>
+                  <line x1="43%" y1="34%" x2="74%" y2="72%" stroke={ag?.color||"#fff"} strokeWidth="1" strokeDasharray="4,3" opacity="0.35"/>
+                </svg>
+                <div style={{ position:"absolute", bottom:6, right:8, fontSize:9, color:"var(--t3)", fontWeight:600, letterSpacing:"0.06em" }}>MAP PREVIEW</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div style={{ fontSize:11 }}><div style={{ color:"var(--t2)", fontWeight:600, marginBottom:2 }}>Throw</div><div style={{ color:"var(--t3)" }}>{l.from||"—"}</div></div>
+                <div style={{ fontSize:11 }}><div style={{ color:"var(--t2)", fontWeight:600, marginBottom:2 }}>Landing</div><div style={{ color:"var(--t3)" }}>{l.land||"—"}</div></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      )}
+    </div>
+  );
+}
 
 /* ════════════════════════════════════════
    DATA ANALYSIS
@@ -1800,399 +910,50 @@ function DataAnalysis({ players=[] }) {
 }
 
 /* ════════════════════════════════════════
-   VOD REVIEW — helpers
-════════════════════════════════════════ */
-function getEmbedUrl(url) {
-  if (!url) return null;
-  // Already an embed URL
-  if (url.includes("youtube.com/embed/")) return url;
-  // youtu.be short link
-  const short = url.match(/youtu\.be\/([^?&]+)/);
-  if (short) return `https://www.youtube.com/embed/${short[1]}?rel=0&modestbranding=1`;
-  // Standard watch URL
-  const watch = url.match(/youtube\.com\/watch\?v=([^&]+)/);
-  if (watch) return `https://www.youtube.com/embed/${watch[1]}?rel=0&modestbranding=1`;
-  // Shorts
-  const shorts = url.match(/youtube\.com\/shorts\/([^?&]+)/);
-  if (shorts) return `https://www.youtube.com/embed/${shorts[1]}?rel=0&modestbranding=1`;
-  // Live streams (youtube.com/live/VIDEO_ID)
-  const live = url.match(/youtube\.com\/live\/([^?&/]+)/);
-  if (live) return `https://www.youtube.com/embed/${live[1]}?rel=0&modestbranding=1`;
-  return null;
-}
-
-function fmt(secs) {
-  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = Math.floor(secs%60);
-  if (h > 0) return `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-  return `${m}:${String(s).padStart(2,"0")}`;
-}
-
-/* ─ Annotation Canvas (overlay on video) ─ */
-const DRAW_COLORS = ["#d4ff1e","#ff5252","#4fc3f7","#69f0ae","#ffab40","#b39ddb","#ffffff"];
-const DRAW_SIZES  = [2,4,8,14];
-const DRAW_TOOLS  = ["pen","arrow","line","rect","circle","text","eraser"];
-const TOOL_ICONS  = { pen:"✏️", arrow:"➜", line:"╱", rect:"▭", circle:"◯", text:"T", eraser:"⌫" };
-
-function DrawCanvas({ strokes, onStrokes }) {
-  const [tool,setTool]         = useState("pen");
-  const [color,setColor]       = useState(DRAW_COLORS[0]);
-  const [size,setSize]         = useState(DRAW_SIZES[1]);
-  const [textInput,setTextInput] = useState("");
-  const [textPos,setTextPos]   = useState(null);
-  const realRef  = React.useRef(null);
-  const drawing  = React.useRef(false);
-  const cur      = React.useRef(null);
-
-  const getPos = (e) => {
-    const rect = realRef.current.getBoundingClientRect();
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x:(cx-rect.left)*(realRef.current.width/rect.width), y:(cy-rect.top)*(realRef.current.height/rect.height) };
-  };
-
-  const paint = (ctx, s) => {
-    ctx.save();
-    ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
-    ctx.lineWidth   = s.size;
-    ctx.lineCap = ctx.lineJoin = "round";
-    ctx.globalCompositeOperation = s.tool==="eraser" ? "destination-out" : "source-over";
-    if (s.tool==="pen"||s.tool==="eraser") {
-      ctx.beginPath(); s.pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();
-    } else if (s.tool==="line") {
-      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
-    } else if (s.tool==="rect") {
-      ctx.strokeRect(s.x1,s.y1,s.x2-s.x1,s.y2-s.y1);
-    } else if (s.tool==="circle") {
-      const rx=Math.abs(s.x2-s.x1)/2, ry=Math.abs(s.y2-s.y1)/2;
-      ctx.beginPath(); ctx.ellipse((s.x1+s.x2)/2,(s.y1+s.y2)/2,rx,ry,0,0,Math.PI*2); ctx.stroke();
-    } else if (s.tool==="arrow") {
-      const dx=s.x2-s.x1, dy=s.y2-s.y1, ang=Math.atan2(dy,dx);
-      const hl = Math.min(28, Math.sqrt(dx*dx+dy*dy)*0.35);
-      ctx.beginPath();
-      ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2);
-      ctx.lineTo(s.x2-hl*Math.cos(ang-0.45),s.y2-hl*Math.sin(ang-0.45));
-      ctx.moveTo(s.x2,s.y2);
-      ctx.lineTo(s.x2-hl*Math.cos(ang+0.45),s.y2-hl*Math.sin(ang+0.45));
-      ctx.stroke();
-    } else if (s.tool==="text") {
-      const fs = Math.max(14, s.size*3);
-      ctx.font = `bold ${fs}px 'Barlow Condensed', sans-serif`;
-      ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 4;
-      ctx.fillText(s.text, s.x1, s.y1);
-    }
-    ctx.restore();
-  };
-
-  const redraw = (ss) => {
-    const c = realRef.current; if(!c) return;
-    const ctx = c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height);
-    ss.forEach(s=>paint(ctx,s));
-  };
-
-  React.useEffect(()=>{ redraw(strokes); }, [strokes]);
-
-  const onDown = (e) => {
-    if(tool==="text") return; // text is handled on click
-    e.preventDefault(); drawing.current=true;
-    const p=getPos(e);
-    cur.current = (tool==="pen"||tool==="eraser") ? {tool,color,size,pts:[p]} : {tool,color,size,x1:p.x,y1:p.y,x2:p.x,y2:p.y};
-  };
-  const onMove = (e) => {
-    if(!drawing.current||!cur.current) return; e.preventDefault();
-    const p=getPos(e);
-    if(tool==="pen"||tool==="eraser") { cur.current.pts.push(p); }
-    else { cur.current.x2=p.x; cur.current.y2=p.y; }
-    redraw(strokes);
-    paint(realRef.current.getContext("2d"), cur.current);
-  };
-  const onUp = () => {
-    if(!drawing.current||!cur.current) return;
-    drawing.current=false;
-    onStrokes([...strokes, cur.current]);
-    cur.current=null;
-  };
-  const onClick = (e) => {
-    if(tool!=="text") return;
-    const p=getPos(e);
-    setTextPos(p);
-    setTextInput("");
-  };
-  const commitText = () => {
-    if(!textInput.trim()||!textPos) return;
-    onStrokes([...strokes, { tool:"text", color, size, x1:textPos.x, y1:textPos.y, text:textInput.trim() }]);
-    setTextPos(null); setTextInput("");
-  };
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:"#050709" }}>
-      {/* Toolbar */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"rgba(13,16,24,0.95)", borderBottom:"1px solid var(--b1)", flexWrap:"wrap" }}>
-        {/* Tools */}
-        <div style={{ display:"flex", gap:3 }}>
-          {DRAW_TOOLS.map(t=>(
-            <button key={t} onClick={()=>{ setTool(t); setTextPos(null); }} title={t}
-              style={{ width:32, height:32, borderRadius:"var(--r)", border:`1px solid ${tool===t?"var(--acc)":"var(--b2)"}`,
-                background:tool===t?"rgba(212,255,30,0.15)":"var(--s2)", color:tool===t?"var(--acc)":"var(--t2)",
-                fontSize:t==="text"?13:12, fontWeight:700, cursor:"pointer", transition:"all 0.1s" }}>
-              {TOOL_ICONS[t]}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ width:1, height:22, background:"var(--b2)" }}/>
-
-        {/* Colors */}
-        <div style={{ display:"flex", gap:4 }}>
-          {DRAW_COLORS.map(c=>(
-            <button key={c} onClick={()=>setColor(c)}
-              style={{ width:22, height:22, borderRadius:4, background:c,
-                border:`2px solid ${color===c?"#fff":"transparent"}`,
-                boxShadow:color===c?`0 0 0 1px ${c}`:"none", cursor:"pointer", transition:"all 0.1s" }}/>
-          ))}
-        </div>
-
-        <div style={{ width:1, height:22, background:"var(--b2)" }}/>
-
-        {/* Stroke size */}
-        <div style={{ display:"flex", gap:5, alignItems:"center" }}>
-          {DRAW_SIZES.map(s=>(
-            <button key={s} onClick={()=>setSize(s)}
-              style={{ width:s===2?14:s===4?18:s===8?22:26, height:s===2?14:s===4?18:s===8?22:26,
-                borderRadius:"50%", background:size===s?"var(--acc)":"var(--s3)",
-                border:`1px solid ${size===s?"var(--acc)":"var(--b2)"}`, cursor:"pointer", transition:"all 0.1s" }}/>
-          ))}
-        </div>
-
-        <div style={{ flex:1 }}/>
-
-        <div style={{ display:"flex", gap:6 }}>
-          {strokes.length>0 && (
-            <button onClick={()=>onStrokes(strokes.slice(0,-1))}
-              style={{ background:"var(--s2)", border:"1px solid var(--b2)", color:"var(--t2)", borderRadius:"var(--r)", padding:"5px 12px", fontSize:11, cursor:"pointer" }}>
-              ↩ Undo
-            </button>
-          )}
-          <button onClick={()=>{ onStrokes([]); setTextPos(null); }}
-            style={{ background:"rgba(255,82,82,0.1)", border:"1px solid rgba(255,82,82,0.25)", color:"var(--red)", borderRadius:"var(--r)", padding:"5px 12px", fontSize:11, cursor:"pointer" }}>
-            Clear All
-          </button>
-        </div>
-      </div>
-
-      {/* Canvas area */}
-      <div style={{ flex:1, position:"relative", overflow:"hidden" }}>
-        <canvas ref={realRef} width={1280} height={720}
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-          onClick={onClick}
-          style={{ width:"100%", height:"100%", cursor:tool==="eraser"?"cell":tool==="text"?"text":"crosshair", touchAction:"none", display:"block" }}
-        />
-
-        {/* Text input popup */}
-        {textPos && (
-          <div style={{ position:"absolute", top:"40%", left:"50%", transform:"translate(-50%,-50%)", zIndex:10,
-            background:"var(--s1)", border:"1px solid var(--acc)", borderRadius:"var(--r2)", padding:"14px 16px", minWidth:260, boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
-            <div className="label-sm" style={{ marginBottom:8, color:"var(--acc)" }}>Add Text Label</div>
-            <input autoFocus type="text" value={textInput} onChange={e=>setTextInput(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter") commitText(); if(e.key==="Escape") setTextPos(null); }}
-              placeholder="Type label..." style={{ marginBottom:10 }}/>
-            <div style={{ display:"flex", gap:6 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center", fontSize:12 }} onClick={commitText}>Place</button>
-              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={()=>setTextPos(null)}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {strokes.length===0 && !textPos && (
-          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
-            <div style={{ color:"var(--t3)", fontSize:12, textAlign:"center", background:"rgba(0,0,0,0.5)", padding:"16px 24px", borderRadius:"var(--r2)" }}>
-              <div style={{ fontSize:28, marginBottom:6 }}>✏️</div>
-              <div style={{ fontWeight:600, marginBottom:4 }}>Annotation Canvas</div>
-              <div style={{ fontSize:11, color:"var(--t3)" }}>Draw over this frame using the tools above</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════
-   RESIZABLE IMAGE
-════════════════════════════════════════ */
-function ResizableImage({ src, onRemove }) {
-  const [height, setHeight] = React.useState(null);
-  const [dragging, setDragging] = React.useState(false);
-  const startY = React.useRef(0);
-  const startH = React.useRef(0);
-  const imgRef = React.useRef(null);
-
-  const onMouseDown = (e) => {
-    e.preventDefault();
-    startY.current = e.clientY;
-    startH.current = imgRef.current ? imgRef.current.offsetHeight : 200;
-    setDragging(true);
-  };
-
-  React.useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e) => {
-      const newH = Math.max(60, startH.current + (e.clientY - startY.current));
-      setHeight(newH);
-    };
-    const onUp = () => setDragging(false);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [dragging]);
-
-  return (
-    <div style={{ position:"relative", borderRadius:"var(--r)", border:"1px solid var(--b1)", flexShrink:0, userSelect:"none" }}>
-      <img ref={imgRef} src={src} alt="note"
-        style={{ width:"100%", display:"block", borderRadius:"var(--r)", height:height||"auto", objectFit:"contain" }}/>
-      <button onClick={onRemove}
-        style={{ position:"absolute", top:6, right:6, width:22, height:22, borderRadius:"50%",
-          background:"rgba(0,0,0,0.7)", border:"none", color:"#fff", cursor:"pointer",
-          fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", zIndex:2 }}>×</button>
-      {/* Drag handle */}
-      <div onMouseDown={onMouseDown}
-        style={{ position:"absolute", bottom:0, left:0, right:0, height:10,
-          cursor:"ns-resize", display:"flex", alignItems:"center", justifyContent:"center",
-          background:"linear-gradient(transparent, rgba(0,0,0,0.4))", borderRadius:"0 0 var(--r) var(--r)" }}>
-        <div style={{ width:32, height:3, borderRadius:2, background:"rgba(255,255,255,0.4)" }}/>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════
    VOD REVIEW
 ════════════════════════════════════════ */
 function VodReview() {
-  const [vods, setVods]                 = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [selId, setSelId]               = useState(null);
-  const [showNew, setShowNew]           = useState(false);
+  const [vods, setVods]           = useState([]);
+  const [sel, setSel]             = useState(null);
+  const [reply, setReply]         = useState({});
+  const [showNew, setShowNew]     = useState(false);
   const [activeFolder, setActiveFolder] = useState("All");
-  const [newForm, setNewForm]           = useState({ title:"", folder:"Scrims", url:"" });
-  const [selTsId, setSelTsId]           = useState(null);
-  const [activeTab, setActiveTab]       = useState("notes");
-  const [showAddTs, setShowAddTs]       = useState(false);
-  const [tsForm, setTsForm]             = useState({ time:"0:00", label:"", cat:"Rotation" });
-  const [urlInput, setUrlInput]         = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [showAnnotate, setShowAnnotate] = useState(false);
+  const [newForm, setNewForm]     = useState({ title:"", folder:"Scrims", url:"" });
 
-  const FOLDERS   = ["All","Scrims","Opponent Analysis","Officials"];
-  const TS_COLORS = { "Rotation":"#4fc3f7","Util Usage":"#b39ddb","Mistake":"#ff5252","Win Cond":"#69f0ae","General":"#ffab40" };
-
-  // Load all VODs from server on mount
-  useEffect(() => {
-    api.get("/api/vods").then(data => {
-      const parsed = (Array.isArray(data) ? data : []).map(v => ({
-        ...v,
-        ts: typeof v.ts === "string" ? JSON.parse(v.ts||"[]") : (v.ts||[])
-      }));
-      setVods(parsed);
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  }, []);
-
-  // Save entire vod back to server whenever it changes
-  const saveVod = (vod) => {
-    api.put(`/api/vods/${vod.id}`, { title:vod.title, folder:vod.folder, url:vod.url, ts:vod.ts });
-  };
+  const FOLDERS = ["All","Scrims","Opponent Analysis","Officials"];
+  const TS_COLORS = { "Rotation":"#4fc3f7", "Util Usage":"#b39ddb", "Mistake":"#ff5252", "Win Cond":"#69f0ae" };
 
   const filteredVods = activeFolder==="All" ? vods : vods.filter(v=>v.folder===activeFolder);
-  const sel   = vods.find(v=>v.id===selId) || null;
-  const selTs = sel?.ts.find(t=>t.id===selTsId) || null;
 
-  const mutateVod = (id, fn) => {
-    setVods(vs => {
-      const next = vs.map(v => { if(v.id!==id) return v; const updated=fn(v); saveVod(updated); return updated; });
-      return next;
-    });
-  };
-  const mutateTs = (tsId, fn) => { if(!sel) return; mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) })); };
-
-  const addVod = async () => {
+  const addVod = () => {
     if(!newForm.title.trim()) return;
-    const v = { id:String(Date.now()), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[] };
-    await api.post("/api/vods", v);
-    setVods(p=>[v,...p]); setSelId(v.id); setUrlInput(v.url);
-    setShowNew(false); setNewForm({ title:"", folder:"Scrims", url:"" });
+    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url, ts:[] };
+    setVods(p=>[...p,v]);
+    setSel(v);
+    setShowNew(false);
+    setNewForm({ title:"", folder:"Scrims", url:"" });
   };
 
-  const deleteVod = async (id) => {
-    await api.delete(`/api/vods/${id}`);
-    setVods(vs=>vs.filter(v=>v.id!==id));
-    if(selId===id) { setSelId(null); setSelTsId(null); }
-    setDeleteConfirm(null);
-  };
-
-  const applyUrl = () => { if(!sel) return; mutateVod(sel.id, v=>({...v, url:urlInput.trim()})); };
-
-  const openAddTs = () => { setTsForm({ time:"0:00", label:"", cat:"Rotation" }); setShowAddTs(true); };
-
-  const confirmAddTs = () => {
-    if(!tsForm.label.trim()||!sel) return;
-    const parts = tsForm.time.split(":").map(Number);
-    const secs  = parts.length===3 ? parts[0]*3600+parts[1]*60+parts[2] : (parts[0]||0)*60+(parts[1]||0);
-    const ts = { id:Date.now(), time:fmt(secs), secs, label:tsForm.label.trim(), cat:tsForm.cat, note:"", strokes:[] };
-    mutateVod(sel.id, v=>({ ...v, ts:[...v.ts, ts].sort((a,b)=>a.secs-b.secs) }));
-    setSelTsId(ts.id); setActiveTab("notes");
-    setShowAddTs(false);
-  };
-
-  const deleteTs = (tsId) => {
-    if(!sel) return;
-    mutateVod(sel.id, v=>({...v, ts:v.ts.filter(t=>t.id!==tsId)}));
-    if(selTsId===tsId) setSelTsId(null);
-    setDeleteConfirm(null);
-  };
-
-  const updateNote    = (tsId, note)    => mutateTs(tsId, t=>({...t,note}));
-  const updateStrokes = (tsId, strokes) => mutateTs(tsId, t=>({...t,strokes}));
-  const addNoteImage  = (tsId, src)     => mutateTs(tsId, t=>({...t, noteImages:[...(t.noteImages||[]),{id:Date.now(),src}]}));
-  const removeNoteImage = (tsId, imgId) => mutateTs(tsId, t=>({...t, noteImages:(t.noteImages||[]).filter(i=>i.id!==imgId)}));
-
-  const handleNotesPaste = (e, tsId) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = (ev) => addNoteImage(tsId, ev.target.result);
-        reader.readAsDataURL(file);
-        return;
-      }
-    }
-  };
-
-  React.useEffect(()=>{ setUrlInput(sel?.url||""); setSelTsId(null); setShowAnnotate(false); }, [selId]);
-
-  const embedUrl = sel ? getEmbedUrl(sel.url) : null;
-  const tsEmbedUrl = (ts) => {
-    if(!sel?.url) return null;
-    const base = getEmbedUrl(sel.url);
-    return base ? `${base}&start=${ts.secs}&autoplay=1` : null;
+  const addReply = (ti, text) => {
+    if(!text.trim()||!sel) return;
+    const update = v => v.id===sel.id ? { ...v, ts:v.ts.map((t,i)=>i===ti?{...t,replies:[...t.replies,text]}:t) } : v;
+    setVods(p=>p.map(update));
+    setSel(prev=>update(prev));
+    setReply(r=>({...r,[ti]:""}));
   };
 
   return (
-    <div style={{ padding:"28px 32px 0", height:"calc(100vh - 60px)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
         <div>
           <div className="bc" style={{ fontSize:38, fontWeight:900, letterSpacing:"0.04em" }}>VOD REVIEW</div>
           <div style={{ color:"var(--t2)", fontSize:13, marginTop:2 }}>Annotate and discuss recordings with your team</div>
         </div>
         <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
       </div>
-      {loading && <div style={{ color:"var(--t3)", fontSize:13, marginBottom:12 }}>Loading reviews...</div>}
 
-      <div style={{ display:"grid", gridTemplateColumns:"210px 1fr", gap:18, flex:1, minHeight:0, overflow:"hidden" }}>
-        {/* Sidebar */}
-        <div style={{ display:"flex", flexDirection:"column", overflowY:"auto" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"200px 1fr", gap:18 }}>
+        <div>
           <div className="label-sm" style={{ marginBottom:8 }}>Folders</div>
           {FOLDERS.map(f=>(
             <div key={f} onClick={()=>setActiveFolder(f)} style={{ padding:"7px 10px", borderRadius:"var(--r)", cursor:"pointer", marginBottom:3, fontSize:13,
@@ -2205,134 +966,61 @@ function VodReview() {
           {filteredVods.length===0
             ? <div style={{ color:"var(--t3)", fontSize:12, padding:"4px 0" }}>No reviews yet.</div>
             : filteredVods.map(v=>(
-              <div key={v.id} style={{ position:"relative", marginBottom:5 }}>
-                <div onClick={()=>setSelId(v.id)} style={{ padding:"10px 11px", paddingRight:32, borderRadius:"var(--r2)", cursor:"pointer",
-                  background:selId===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${selId===v.id?"var(--b3)":"var(--b1)"}`, transition:"all 0.15s" }}>
-                  <div style={{ fontSize:12, fontWeight:600, marginBottom:3 }}>{v.title}</div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <span style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} timestamps</span>
-                    <span style={{ fontSize:10, color:"var(--t3)" }}>· {v.folder}</span>
-                  </div>
-                </div>
-                <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({type:"vod",id:v.id,label:v.title}); }}
-                  style={{ position:"absolute", top:8, right:8, background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"2px 4px", borderRadius:4 }}>✕</button>
+              <div key={v.id} onClick={()=>setSel(v)} style={{ padding:"10px 11px", borderRadius:"var(--r2)", cursor:"pointer", marginBottom:5,
+                background:sel?.id===v.id?"var(--s3)":"var(--s1)", border:`1px solid ${sel?.id===v.id?"var(--b3)":"var(--b1)"}` }}>
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:3 }}>{v.title}</div>
+                <div style={{ fontSize:10, color:"var(--t3)" }}>{v.ts.length} annotations</div>
               </div>
             ))
           }
         </div>
 
-        {/* Main area */}
         {sel ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:10, minWidth:0, minHeight:0, overflowY:"auto", paddingBottom:20 }}>
-
-            {/* Title + action bar */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"10px 16px", flexShrink:0 }}>
-              <span className="bc" style={{ fontSize:18, fontWeight:700 }}>{sel.title}</span>
-              <div style={{ display:"flex", gap:8 }}>
-                <button className="btn btn-acc" style={{ fontSize:11 }} onClick={openAddTs}>+ Timestamp</button>
-                <button className="btn btn-red" style={{ fontSize:11 }} onClick={()=>setDeleteConfirm({type:"vod",id:sel.id,label:sel.title})}>🗑 Delete</button>
-              </div>
-            </div>
-
-            {/* Video — 16:9 */}
-            <div style={{ flexShrink:0 }}>
-              <div style={{ position:"relative", width:"100%", paddingTop:"56.25%", background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:10, overflow:"hidden" }}>
-                <div style={{ position:"absolute", inset:0 }}>
-                  {embedUrl
-                    ? <iframe key={selTs ? `ts-${selTs.id}` : embedUrl}
-                        src={selTs ? (tsEmbedUrl(selTs)||embedUrl) : embedUrl}
-                        width="100%" height="100%"
-                        style={{ border:"none", display:"block" }}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>
-                    : <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--t3)" }}>
-                        <div style={{ fontSize:40 }}>▶</div>
-                        <div style={{ fontSize:13 }}>No video — paste a YouTube URL below</div>
-                      </div>
-                  }
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:8, marginTop:8 }}>
-                <input type="text" placeholder="YouTube URL (e.g. https://youtu.be/...)" value={urlInput}
-                  onChange={e=>setUrlInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") applyUrl(); }} style={{ flex:1 }}/>
-                <button className="btn btn-sub" onClick={applyUrl}>Load</button>
-              </div>
-            </div>
-
-            {/* Timestamps + Notes panel */}
-            <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:10, minHeight:300 }}>
-              {/* Timestamp list */}
-              <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--b1)", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
-                  <span className="label-sm">Timestamps ({sel.ts.length})</span>
-                  <button onClick={openAddTs} style={{ fontSize:10, fontWeight:700, color:"var(--acc)", background:"rgba(212,255,30,0.1)", border:"1px solid rgba(212,255,30,0.2)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>+ ADD</button>
-                </div>
-                <div style={{ flex:1, overflowY:"auto" }}>
-                  {sel.ts.length===0
-                    ? <div style={{ color:"var(--t3)", fontSize:12, padding:"16px 14px", lineHeight:1.7 }}>No timestamps yet.<br/>Click <strong style={{ color:"var(--acc)" }}>+ Timestamp</strong> above.</div>
-                    : sel.ts.map(t=>(
-                      <div key={t.id} onClick={()=>{ setSelTsId(t.id); setActiveTab("notes"); }}
-                        style={{ padding:"10px 12px", cursor:"pointer", borderBottom:"1px solid var(--b1)",
-                          background:selTsId===t.id?"var(--s3)":"transparent",
-                          borderLeft:`3px solid ${selTsId===t.id?(TS_COLORS[t.cat]||"var(--acc)"):"transparent"}`, transition:"all 0.1s" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <span style={{ fontFamily:"'JetBrains Mono'", fontSize:11, color:TS_COLORS[t.cat]||"var(--acc)", fontWeight:700 }}>{t.time}</span>
-                            <div style={{ fontSize:12, color:"var(--t1)", marginTop:2, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.label}</div>
-                            <span style={{ fontSize:10, color:TS_COLORS[t.cat]||"var(--t3)" }}>{t.cat}</span>
-                          </div>
-                          <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({type:"ts",id:t.id,label:t.label}); }}
-                            style={{ background:"transparent", border:"none", color:"var(--t3)", cursor:"pointer", fontSize:15, padding:"0 4px", flexShrink:0 }}>×</button>
-                        </div>
-                        {t.note && <div style={{ fontSize:10, color:"var(--t2)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {t.note}</div>}
-                        {t.strokes?.length>0 && <div style={{ fontSize:10, color:"var(--acc)", marginTop:2 }}>✏ {t.strokes.length} drawing{t.strokes.length!==1?"s":""}</div>}
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-
-              {/* Notes / Draw panel */}
-              {selTs ? (
-                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-                  <div style={{ display:"flex", borderBottom:"1px solid var(--b1)", padding:"12px 14px", alignItems:"center", gap:8, flexShrink:0 }}>
-                    <span style={{ fontFamily:"'JetBrains Mono'", fontSize:12, color:TS_COLORS[selTs.cat]||"var(--acc)", fontWeight:700 }}>{selTs.time}</span>
-                    <span style={{ fontSize:13, fontWeight:600, color:"var(--t1)", marginRight:"auto" }}>{selTs.label}</span>
-                    <span className="chip" style={{ background:`${TS_COLORS[selTs.cat]||"#888"}18`, color:TS_COLORS[selTs.cat]||"var(--t2)", border:`1px solid ${TS_COLORS[selTs.cat]||"var(--b2)"}30` }}>{selTs.cat}</span>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:12, overflow:"hidden", aspectRatio:"16/6.5", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              {sel.url
+                ? <iframe src={sel.url} width="100%" height="100%" style={{ border:"none" }} allowFullScreen/>
+                : (
+                  <div style={{ textAlign:"center", color:"var(--t3)" }}>
+                    <div style={{ fontSize:40, marginBottom:8 }}>▶</div>
+                    <div style={{ marginBottom:10 }}>No VOD attached</div>
+                    <button className="btn btn-sub" style={{ fontSize:12 }}>Paste YouTube URL</button>
                   </div>
-                  <div style={{ flex:1, display:"flex", flexDirection:"column", padding:16, gap:10, overflow:"hidden" }}>
-                    <textarea value={selTs.note} onChange={e=>updateNote(selTs.id, e.target.value)}
-                      onPaste={e=>handleNotesPaste(e, selTs.id)}
-                      placeholder="Add your observations, callouts, feedback... paste images with Ctrl+V"
-                      style={{ resize:"none", minHeight:120, lineHeight:1.75, padding:12, fontSize:13,
-                        background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r)", color:"var(--t1)", fontFamily:"'Barlow',sans-serif" }}/>
-                    {/* Pasted images */}
-                    {(selTs.noteImages||[]).length > 0 && (
-                      <div style={{ display:"flex", flexDirection:"column", gap:8, overflowY:"auto", maxHeight:340 }}>
-                        {(selTs.noteImages||[]).map(img => (
-                          <ResizableImage key={img.id} src={img.src} onRemove={()=>removeNoteImage(selTs.id, img.id)}/>
-                        ))}
+                )
+              }
+            </div>
+            <div className="card" style={{ padding:"14px 18px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between" }}>
+                <span className="bc" style={{ fontSize:20, fontWeight:700 }}>{sel.title}</span>
+                <button className="btn btn-sub" style={{ fontSize:11 }}>+ Timestamp</button>
+              </div>
+            </div>
+            <div className="card">
+              <div className="label-sm" style={{ marginBottom:12 }}>ANNOTATIONS ({sel.ts.length})</div>
+              {sel.ts.length===0
+                ? <div style={{ color:"var(--t3)", fontSize:13 }}>No annotations yet. Add timestamps to start reviewing.</div>
+                : sel.ts.map((t,ti)=>(
+                  <div key={ti} className="vts" style={{ borderBottom:ti<sel.ts.length-1?"1px solid var(--b1)":"none" }}>
+                    <div style={{ background:(TS_COLORS[t.cat]||"#8892aa")+"18", color:TS_COLORS[t.cat]||"#8892aa", border:`1px solid ${(TS_COLORS[t.cat]||"#8892aa")}30`,
+                      padding:"5px 9px", borderRadius:6, fontFamily:"'JetBrains Mono'", fontSize:11, flexShrink:0, minWidth:48, textAlign:"center" }}>
+                      {t.time}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:TS_COLORS[t.cat]||"#8892aa", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:3 }}>{t.cat}</div>
+                      <div style={{ fontSize:13, color:"var(--t2)", marginBottom:6 }}>{t.note}</div>
+                      {t.replies.map((r,ri)=>(
+                        <div key={ri} style={{ fontSize:12, color:"var(--t3)", background:"var(--s2)", borderRadius:5, padding:"5px 9px", marginBottom:4, borderLeft:"2px solid var(--b3)" }}>↩ {r}</div>
+                      ))}
+                      <div style={{ display:"flex", gap:6 }}>
+                        <input type="text" placeholder="Reply..." value={reply[ti]||""} onChange={e=>setReply(r=>({...r,[ti]:e.target.value}))}
+                          onKeyDown={e=>{ if(e.key==="Enter") addReply(ti,reply[ti]||""); }}
+                          style={{ flex:1, padding:"5px 10px", fontSize:12 }}/>
+                        <button className="btn btn-ghost" style={{ padding:"4px 10px", fontSize:11 }} onClick={()=>addReply(ti,reply[ti]||"")}>Reply</button>
                       </div>
-                    )}
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
-                      <span style={{ fontSize:11, color:"var(--t3)" }}>
-                        {selTs.note.length} chars
-                        {(selTs.noteImages||[]).length > 0 && <> · {(selTs.noteImages||[]).length} image{(selTs.noteImages||[]).length!==1?"s":""}</>}
-                        {" · Ctrl+V to paste image"}
-                      </span>
-                      <span style={{ fontSize:11, color:"var(--green)" }}>✓ Saved automatically</span>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div style={{ background:"var(--s1)", border:"1px solid var(--b1)", borderRadius:"var(--r3)", display:"flex", alignItems:"center", justifyContent:"center", minHeight:300 }}>
-                  <div style={{ textAlign:"center", color:"var(--t3)" }}>
-                    <div style={{ fontSize:32, marginBottom:10 }}>←</div>
-                    <div style={{ fontSize:13, marginBottom:6 }}>Select a timestamp to write notes or draw</div>
-                    <div style={{ fontSize:11 }}>Use <strong style={{ color:"var(--acc)" }}>✏️ Annotate</strong> to draw over the video</div>
-                  </div>
-                </div>
-              )}
+                ))
+              }
             </div>
           </div>
         ) : (
@@ -2340,7 +1028,7 @@ function VodReview() {
             <div style={{ textAlign:"center", color:"var(--t3)" }}>
               <div style={{ fontSize:40, marginBottom:12 }}>▶</div>
               <div className="bc" style={{ fontSize:20, fontWeight:700, marginBottom:8, color:"var(--t2)" }}>No Review Selected</div>
-              <div style={{ fontSize:13, marginBottom:20 }}>Create a new review or select one from the sidebar</div>
+              <div style={{ fontSize:13, marginBottom:20 }}>Create a new review to get started</div>
               <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
             </div>
           </div>
@@ -2350,16 +1038,13 @@ function VodReview() {
       {showNew && (
         <Modal onClose={()=>setShowNew(false)} title="New VOD Review">
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div>
-              <input autoFocus type="text" value={newForm.title} onChange={e=>setNewForm(f=>({...f,title:e.target.value}))}
-                onKeyDown={e=>e.key==="Enter"&&addVod()} placeholder="e.g. NRG vs LOUD — Ascent Review"/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>Title</div><input type="text" value={newForm.title} onChange={e=>setNewForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Cloud9 Loss Breakdown"/></div>
             <div><div className="label-sm" style={{ marginBottom:6 }}>Folder</div>
               <select value={newForm.folder} onChange={e=>setNewForm(f=>({...f,folder:e.target.value}))}>
                 {FOLDERS.filter(f=>f!=="All").map(f=><option key={f}>{f}</option>)}
               </select>
             </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div>
-              <input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtu.be/..."/></div>
+            <div><div className="label-sm" style={{ marginBottom:6 }}>YouTube URL (optional)</div><input type="text" value={newForm.url} onChange={e=>setNewForm(f=>({...f,url:e.target.value}))} placeholder="https://youtube.com/..."/></div>
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={addVod}>Create Review</button>
               <button className="btn btn-ghost" onClick={()=>setShowNew(false)}>Cancel</button>
@@ -2367,63 +1052,9 @@ function VodReview() {
           </div>
         </Modal>
       )}
-
-      {showAddTs && (
-        <Modal onClose={()=>setShowAddTs(false)} title="Add Timestamp">
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ background:"var(--s2)", border:"1px solid var(--b1)", borderRadius:"var(--r2)", padding:"14px 16px", textAlign:"center" }}>
-              <div className="label-sm" style={{ marginBottom:6 }}>Current Video Time</div>
-              <div style={{ fontFamily:"'JetBrains Mono'", fontSize:32, fontWeight:700, color:"var(--acc)", marginBottom:8, letterSpacing:"0.05em" }}>{tsForm.time}</div>
-              <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap" }}>
-                {[0,15,30,60,90,120,180,300].map(s=>(
-                  <button key={s} onClick={()=>setTsForm(f=>({...f,time:fmt(s)}))}
-                    style={{ padding:"3px 10px", borderRadius:"var(--r)", fontSize:11, fontWeight:600, background:"var(--s3)", border:"1px solid var(--b2)", color:"var(--t2)", cursor:"pointer" }}>
-                    {fmt(s)}
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize:11, color:"var(--t3)", marginTop:8 }}>Pick a preset or type the time manually below · Pause your video first!</div>
-            </div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Time (m:ss or h:mm:ss)</div>
-              <input autoFocus type="text" value={tsForm.time} onChange={e=>setTsForm(f=>({...f,time:e.target.value}))} placeholder="e.g. 1:23 or 12:45"/></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Label</div>
-              <input type="text" value={tsForm.label} onChange={e=>setTsForm(f=>({...f,label:e.target.value}))}
-                onKeyDown={e=>e.key==="Enter"&&confirmAddTs()} placeholder="Describe this moment..."/></div>
-            <div><div className="label-sm" style={{ marginBottom:6 }}>Category</div>
-              <select value={tsForm.cat} onChange={e=>setTsForm(f=>({...f,cat:e.target.value}))}>
-                {Object.keys(TS_COLORS).map(c=><option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-acc" style={{ flex:1, justifyContent:"center" }} onClick={confirmAddTs} disabled={!tsForm.label.trim()}>Add Timestamp</button>
-              <button className="btn btn-ghost" onClick={()=>setShowAddTs(false)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {deleteConfirm && (
-        <Modal onClose={()=>setDeleteConfirm(null)} title="Confirm Delete">
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>
-              Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{deleteConfirm.label}"</strong>?
-              {deleteConfirm.type==="vod" && <span> This will remove the review and all its timestamps permanently.</span>}
-              <br/>This cannot be undone.
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }}
-                onClick={()=>deleteConfirm.type==="vod" ? deleteVod(deleteConfirm.id) : deleteTs(deleteConfirm.id)}>
-                🗑 Yes, Delete
-              </button>
-              <button className="btn btn-ghost" onClick={()=>setDeleteConfirm(null)}>Cancel</button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
-
 
 /* ════════════════════════════════════════
    TASKS
