@@ -1012,11 +1012,8 @@ function RawDB() {
 }
 
 function Playbooks() {
-  const STORAGE_KEY = "ticra_playbooks_v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
-  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
-
-  const [pbs, setPbsRaw]  = useState(load);
+  const [pbs, setPbs]     = useState([]);
+  const [loading, setLoading] = useState(true);
   const [sel, setSel]     = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
   const [modal, setModal] = useState(false);
@@ -1024,10 +1021,19 @@ function Playbooks() {
   const [form, setForm]   = useState({ name:"", map:"Ascent", desc:"" });
   const fileRef = React.useRef();
 
-  const setPbs = (fn) => setPbsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    save(next); return next;
-  });
+  useEffect(() => {
+    api.get("/api/playbooks").then(data => {
+      const parsed = (Array.isArray(data) ? data : []).map(p => ({
+        id: p.id,
+        name: p.name || p.title || "Playbook",
+        map: p.map || "Ascent",
+        desc: p.desc || "",
+        pdfUrl: p.pdf_url || p.pdfUrl || "",
+        fileName: p.file_name || p.fileName || ""
+      }));
+      setPbs(parsed);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
 
   // Convert base64 → blob URL whenever selection changes (blob URLs work in iframes, data: URLs don't)
   React.useEffect(() => {
@@ -1047,9 +1053,10 @@ function Playbooks() {
     const file = e.target.files[0];
     if (!file || file.type !== "application/pdf") return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target.result; // data:application/pdf;base64,...
-      const nb = { id: Date.now(), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: base64, fileName: file.name };
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      const nb = { id: String(Date.now()), name: form.name.trim() || file.name.replace(".pdf",""), map: form.map, desc: form.desc, pdfUrl: base64, fileName: file.name };
+      await api.post("/api/playbooks", nb);
       setPbs(prev => [...prev, nb]);
       setSel(nb);
       setModal(false);
@@ -1059,7 +1066,8 @@ function Playbooks() {
     e.target.value = "";
   };
 
-  const deletePb = (id) => {
+  const deletePb = async (id) => {
+    await api.delete(`/api/playbooks/${id}`);
     setPbs(p => p.filter(x => x.id !== id));
     if(sel?.id === id) setSel(null);
     setDelConfirm(null);
@@ -1412,29 +1420,30 @@ function DocsEditor({ value, onChange }) {
 }
 
 function GamePlans() {
-  const STORAGE_KEY = "ticra_gameplans_v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
-  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
-
-  const [docs, setDocsRaw] = useState(load);
+  const [docs, setDocs]    = useState([]);
+  const [loading, setLoading] = useState(true);
   const [sel, setSel]      = useState(null);
   const [modal, setModal]  = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [form, setForm]    = useState({ title:"", opp:"", maps:[], side:"atk" });
-  const [docContent, setDocContent] = useState({ html:"", images:[] }); // live editor state
+  const [docContent, setDocContent] = useState({ html:"", images:[] });
 
-  const setDocs = (fn) => setDocsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    save(next); return next;
-  });
+  useEffect(() => {
+    api.get("/api/gameplans").then(data => {
+      const parsed = (Array.isArray(data) ? data : []).map(d => ({
+        ...d,
+        maps: typeof d.maps === "string" ? JSON.parse(d.maps||"[]") : (d.maps||[]),
+        content: typeof d.content === "string" ? JSON.parse(d.content||"{}") : (d.content||{ html:"", images:[] })
+      }));
+      setDocs(parsed);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
 
-  // When switching docs, load content into editor (but NOT when docs array changes from our own save)
   React.useEffect(()=>{
     if (sel) setDocContent(sel.content || { html: sel.body||"", images:[] });
     else setDocContent({ html:"", images:[] });
-  }, [sel?.id]); // only on ID change, not every save
+  }, [sel?.id]);
 
-  // Debounced save — writes to localStorage every 500ms after typing stops
   const saveTimer = React.useRef(null);
   const selIdRef  = React.useRef(sel?.id);
   React.useEffect(()=>{ selIdRef.current = sel?.id; }, [sel?.id]);
@@ -1442,12 +1451,12 @@ function GamePlans() {
   const saveContent = (content) => {
     setDocContent(content);
     if (!selIdRef.current) return;
-    // Save immediately to localStorage without going through React state loop
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      setDocsRaw(prev => {
+      setDocs(prev => {
         const next = prev.map(d => d.id===selIdRef.current ? { ...d, content } : d);
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+        const doc = next.find(d=>d.id===selIdRef.current);
+        if(doc) api.put(`/api/gameplans/${selIdRef.current}`, { title:doc.title, content: JSON.stringify(content) });
         return next;
       });
     }, 400);
@@ -1455,19 +1464,19 @@ function GamePlans() {
 
   const toggleMap = m => setForm(f=>({ ...f, maps: f.maps.includes(m)?f.maps.filter(x=>x!==m):[...f.maps,m] }));
 
-  const create = () => {
+  const create = async () => {
     if(!form.title.trim()) return;
-    const d = { id:Date.now(), ...form, date: new Date().toLocaleDateString(), content:{ html:"", images:[] } };
+    const d = { id:String(Date.now()), ...form, maps: form.maps, date: new Date().toLocaleDateString(), content:{ html:"", images:[] } };
+    await api.post("/api/gameplans", { id:d.id, title:d.title, content: JSON.stringify(d.content) });
     setDocs(p=>[...p, d]);
     setSel(d);
     setModal(false);
     setForm({ title:"", opp:"", maps:[], side:"atk" });
   };
 
-  const deleteDoc = (id) => {
-    const next = docs.filter(d=>d.id!==id);
-    setDocsRaw(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+  const deleteDoc = async (id) => {
+    await api.delete(`/api/gameplans/${id}`);
+    setDocs(prev => prev.filter(d=>d.id!==id));
     if(sel?.id===id) setSel(null);
     setDelConfirm(null);
   };
@@ -1571,20 +1580,28 @@ function GamePlans() {
 }
 
 function Compositions() {
-  const STORAGE_KEY = "ticra_comps_v1";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
-  const save = (data) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch{} };
-
-  const [comps, setCompsRaw]  = useState(load);
+  const [comps, setComps]     = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modal, setModal]     = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
   const [form, setForm]       = useState({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
   const ROLES = ["Duelist","Initiator","Controller","Sentinel"];
 
-  const setComps = (fn) => setCompsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    save(next); return next;
-  });
+  useEffect(() => {
+    api.get("/api/compositions").then(data => {
+      const parsed = (Array.isArray(data) ? data : []).map(c => {
+        const roles = typeof c.roles === "string" ? JSON.parse(c.roles||"{}") : (c.roles||{});
+        return {
+          id: c.id,
+          map: c.map,
+          name: roles.name || c.map + " Comp",
+          agents: roles.agents || [],
+          players: roles.players || []
+        };
+      });
+      setComps(parsed);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
 
   const toggleAgent = ag => {
     setForm(f=>{
@@ -1594,9 +1611,10 @@ function Compositions() {
     });
   };
 
-  const create = () => {
+  const create = async () => {
     if(!form.agents.length) return;
-    const c = { id:Date.now(), map:form.map, name:form.name||`${form.map} Comp`, agents:form.agents, players:form.players };
+    const c = { id:String(Date.now()), map:form.map, name:form.name||`${form.map} Comp`, agents:form.agents, players:form.players };
+    await api.post("/api/compositions", { id:c.id, map:c.map, roles: JSON.stringify({ name:c.name, agents:c.agents, players:c.players }) });
     setComps(p=>[...p,c]);
     setModal(false);
     setForm({ map:"Ascent", name:"", agents:[], players:["","","","",""] });
@@ -1696,7 +1714,7 @@ function Compositions() {
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ fontSize:13, color:"var(--t2)", lineHeight:1.7 }}>Are you sure you want to delete <strong style={{ color:"var(--t1)" }}>"{delConfirm.name}"</strong>? This cannot be undone.</div>
             <div style={{ display:"flex", gap:8 }}>
-              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={()=>{ setComps(p=>p.filter(c=>c.id!==delConfirm.id)); setDelConfirm(null); }}>🗑 Yes, Delete</button>
+              <button className="btn btn-red" style={{ flex:1, justifyContent:"center" }} onClick={async ()=>{ await api.delete(`/api/compositions/${delConfirm.id}`); setComps(p=>p.filter(c=>c.id!==delConfirm.id)); setDelConfirm(null); }}>🗑 Yes, Delete</button>
               <button className="btn btn-ghost" onClick={()=>setDelConfirm(null)}>Cancel</button>
             </div>
           </div>
@@ -2051,10 +2069,8 @@ function ResizableImage({ src, onRemove }) {
    VOD REVIEW
 ════════════════════════════════════════ */
 function VodReview() {
-  const STORAGE_KEY = "ticra_vods_v2";
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch{ return []; } };
-
-  const [vods, setVodsRaw]              = useState(load);
+  const [vods, setVods]                 = useState([]);
+  const [loading, setLoading]           = useState(true);
   const [selId, setSelId]               = useState(null);
   const [showNew, setShowNew]           = useState(false);
   const [activeFolder, setActiveFolder] = useState("All");
@@ -2070,29 +2086,44 @@ function VodReview() {
   const FOLDERS   = ["All","Scrims","Opponent Analysis","Officials"];
   const TS_COLORS = { "Rotation":"#4fc3f7","Util Usage":"#b39ddb","Mistake":"#ff5252","Win Cond":"#69f0ae","General":"#ffab40" };
 
-  const setVods = (fn) => {
-    setVodsRaw(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch{}
-      return next;
-    });
+  // Load all VODs from server on mount
+  useEffect(() => {
+    api.get("/api/vods").then(data => {
+      const parsed = (Array.isArray(data) ? data : []).map(v => ({
+        ...v,
+        ts: typeof v.ts === "string" ? JSON.parse(v.ts||"[]") : (v.ts||[])
+      }));
+      setVods(parsed);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
+
+  // Save entire vod back to server whenever it changes
+  const saveVod = (vod) => {
+    api.put(`/api/vods/${vod.id}`, { title:vod.title, folder:vod.folder, url:vod.url, ts:vod.ts });
   };
 
   const filteredVods = activeFolder==="All" ? vods : vods.filter(v=>v.folder===activeFolder);
   const sel   = vods.find(v=>v.id===selId) || null;
   const selTs = sel?.ts.find(t=>t.id===selTsId) || null;
 
-  const mutateVod = (id, fn) => setVods(vs=>vs.map(v=>v.id===id?fn(v):v));
-  const mutateTs  = (tsId, fn) => { if(!sel) return; mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) })); };
+  const mutateVod = (id, fn) => {
+    setVods(vs => {
+      const next = vs.map(v => { if(v.id!==id) return v; const updated=fn(v); saveVod(updated); return updated; });
+      return next;
+    });
+  };
+  const mutateTs = (tsId, fn) => { if(!sel) return; mutateVod(sel.id, v=>({ ...v, ts:v.ts.map(t=>t.id===tsId?fn(t):t) })); };
 
-  const addVod = () => {
+  const addVod = async () => {
     if(!newForm.title.trim()) return;
-    const v = { id:Date.now(), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[], createdAt:new Date().toLocaleDateString() };
-    setVods(p=>[...p,v]); setSelId(v.id); setUrlInput(v.url);
+    const v = { id:String(Date.now()), title:newForm.title, folder:newForm.folder, url:newForm.url.trim(), ts:[] };
+    await api.post("/api/vods", v);
+    setVods(p=>[v,...p]); setSelId(v.id); setUrlInput(v.url);
     setShowNew(false); setNewForm({ title:"", folder:"Scrims", url:"" });
   };
 
-  const deleteVod = (id) => {
+  const deleteVod = async (id) => {
+    await api.delete(`/api/vods/${id}`);
     setVods(vs=>vs.filter(v=>v.id!==id));
     if(selId===id) { setSelId(null); setSelTsId(null); }
     setDeleteConfirm(null);
@@ -2157,6 +2188,7 @@ function VodReview() {
         </div>
         <button className="btn btn-acc" onClick={()=>setShowNew(true)}>+ New Review</button>
       </div>
+      {loading && <div style={{ color:"var(--t3)", fontSize:13, marginBottom:12 }}>Loading reviews...</div>}
 
       <div style={{ display:"grid", gridTemplateColumns:"210px 1fr", gap:18, flex:1, minHeight:0, overflow:"hidden" }}>
         {/* Sidebar */}
