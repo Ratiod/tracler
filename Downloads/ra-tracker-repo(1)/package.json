@@ -1,0 +1,17 @@
+{
+  "name": "ra-tracker-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RA Tracker — Valorant scrim tracker monorepo",
+  "workspaces": [
+    "tracker-app",
+    "web/client",
+    "web/api"
+  ],
+  "scripts": {
+    "dev:app": "cd tracker-app && npm run dev",
+    "dev:web": "cd web/client && npm run dev",
+    "build:app": "cd tracker-app && npm run build",
+    "build:web": "cd web/client && npm run build"
+  }
+}

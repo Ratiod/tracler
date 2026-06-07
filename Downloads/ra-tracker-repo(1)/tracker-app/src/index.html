@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RA Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:    #0d0d0f;
+    --s1:    #111114;
+    --s2:    #18181c;
+    --s3:    #222228;
+    --b1:    #2a2a32;
+    --b2:    #333340;
+    --acc:   #d4ff1e;
+    --red:   #ff5252;
+    --green: #4ade80;
+    --t1:    #f0f0f0;
+    --t2:    #a0a0b0;
+    --t3:    #606070;
+    --font:  'Inter', 'Segoe UI', sans-serif;
+  }
+
+  html, body {
+    width: 440px; height: 680px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--t1);
+    font-family: var(--font);
+    font-size: 13px;
+    user-select: none;
+  }
+
+  /* ── Title bar ── */
+  .titlebar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 40px; padding: 0 14px;
+    background: var(--s1);
+    border-bottom: 1px solid var(--b1);
+    -webkit-app-region: drag;
+  }
+  .titlebar-left { display: flex; align-items: center; gap: 8px; }
+  .titlebar-logo {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: var(--acc); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 900; color: #000;
+  }
+  .titlebar-title { font-size: 13px; font-weight: 700; color: var(--t1); letter-spacing: 0.04em; }
+  .titlebar-controls { display: flex; gap: 6px; -webkit-app-region: no-drag; }
+  .titlebar-controls button {
+    width: 28px; height: 22px; border: none; border-radius: 4px;
+    background: var(--s3); color: var(--t3); cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .titlebar-controls button:hover { background: var(--b2); color: var(--t1); }
+  .titlebar-controls button.close:hover { background: var(--red); color: #fff; }
+
+  /* ── Status dot ── */
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--t3); flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-text { font-size: 11px; color: var(--t2); }
+
+  /* ── Body ── */
+  .body { padding: 18px; height: calc(680px - 40px); overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Section ── */
+  .section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--t3); margin-bottom: 8px;
+  }
+
+  /* ── Inputs ── */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 10px; font-weight: 700; color: var(--t3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .field input {
+    background: var(--s2); border: 1px solid var(--b1); border-radius: 7px;
+    color: var(--t1); font-size: 13px; font-family: var(--font);
+    padding: 9px 12px; outline: none; transition: border 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .field input:focus { border-color: var(--acc); }
+  .field input::placeholder { color: var(--t3); }
+
+  .riot-row { display: flex; gap: 8px; align-items: flex-end; }
+  .riot-row .field:first-child { flex: 1; }
+  .riot-hash {
+    font-size: 18px; color: var(--t3); padding-bottom: 8px; flex-shrink: 0;
+  }
+  .riot-row .field:last-child { width: 90px; }
+
+  /* ── Buttons ── */
+  .btn {
+    border: none; border-radius: 7px; cursor: pointer;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+    padding: 10px 16px; transition: opacity 0.15s, background 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { opacity: 0.7; }
+  .btn-acc  { background: var(--acc); color: #000; }
+  .btn-ghost { background: var(--s2); color: var(--t2); border: 1px solid var(--b1); }
+  .btn-row  { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; text-align: center; }
+
+  /* ── Connection status banner ── */
+  .conn-banner {
+    padding: 8px 12px; border-radius: 7px; font-size: 11px; font-weight: 600;
+    display: none; align-items: center; gap: 6px;
+  }
+  .conn-banner.ok    { display: flex; background: rgba(74,222,128,0.1); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+  .conn-banner.error { display: flex; background: rgba(255,82,82,0.1);  color: var(--red);   border: 1px solid rgba(255,82,82,0.2); }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--b1); }
+
+  /* ── Status row ── */
+  .status-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--s2); border: 1px solid var(--b1); border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .status-left { display: flex; align-items: center; gap: 8px; }
+
+  /* ── Last match card ── */
+  .match-card {
+    background: var(--s2); border: 1px solid var(--b1); border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .match-card .map  { font-size: 15px; font-weight: 900; color: var(--t1); text-transform: uppercase; letter-spacing: 0.06em; }
+  .match-card .meta { font-size: 11px; color: var(--t3); margin-top: 3px; }
+  .match-card .score-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .match-card .score { font-size: 22px; font-weight: 900; }
+  .match-card .score.win  { color: var(--green); }
+  .match-card .score.loss { color: var(--red); }
+  .match-card .opp   { font-size: 12px; color: var(--t2); }
+  .match-none { font-size: 12px; color: var(--t3); font-style: italic; }
+
+  /* ── Log ── */
+  .log-box {
+    background: var(--s1); border: 1px solid var(--b1); border-radius: 8px;
+    padding: 10px 12px; height: 110px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 3px;
+    -webkit-app-region: no-drag;
+  }
+  .log-entry { font-size: 11px; color: var(--t2); font-family: 'Consolas', monospace; }
+  .log-entry .ts { color: var(--t3); margin-right: 6px; }
+
+  /* ── Open dashboard ── */
+  .dash-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--s2); border: 1px solid var(--b1); border-radius: 7px;
+    padding: 9px; color: var(--t2); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .dash-btn:hover { border-color: var(--acc); color: var(--acc); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--b2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Title bar -->
+<div class="titlebar">
+  <div class="titlebar-left">
+    <div class="titlebar-logo">RA</div>
+    <span class="titlebar-title">RA Tracker</span>
+  </div>
+  <div class="titlebar-controls">
+    <button onclick="window.ra.windowMinimize()" title="Minimise">–</button>
+    <button class="close" onclick="window.ra.windowClose()" title="Hide to tray">✕</button>
+  </div>
+</div>
+
+<!-- Body -->
+<div class="body">
+
+  <!-- Setup -->
+  <div>
+    <div class="section-label">Setup</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="field">
+        <label>API URL</label>
+        <input id="apiUrl" placeholder="https://tracker2-ten.vercel.app" autocomplete="off" spellcheck="false"/>
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input id="apiKey" placeholder="sk_live_…" type="password" autocomplete="off" spellcheck="false"/>
+      </div>
+      <div class="field">
+        <label>Your Riot ID</label>
+        <div class="riot-row">
+          <div class="field" style="margin:0">
+            <input id="riotName" placeholder="Name" autocomplete="off" spellcheck="false"/>
+          </div>
+          <span class="riot-hash">#</span>
+          <div class="field" style="margin:0">
+            <input id="riotTag" placeholder="TAG" autocomplete="off" spellcheck="false"/>
+          </div>
+        </div>
+      </div>
+      <div id="connBanner" class="conn-banner"></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="testConnection()">Test Connection</button>
+        <button class="btn btn-acc"   onclick="saveConfig()">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Watcher status -->
+  <div class="status-row">
+    <div class="status-left">
+      <div id="watchDot" class="status-dot"></div>
+      <span id="watchText" class="status-text">Stopped</span>
+    </div>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="window.ra.openDashboard()">
+      Open Dashboard ↗
+    </button>
+  </div>
+
+  <!-- Last match -->
+  <div>
+    <div class="section-label">Last Match</div>
+    <div id="matchCard" class="match-card">
+      <div class="match-none">No match captured yet</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div>
+    <div class="section-label">Activity Log</div>
+    <div id="logBox" class="log-box"></div>
+  </div>
+
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // ── Load saved config ───────────────────────────────────────────────────────
+  window.addEventListener("DOMContentLoaded", async () => {
+    const cfg = await window.ra.getConfig();
+    $("apiUrl").value   = cfg.apiUrl  || "";
+    $("apiKey").value   = cfg.apiKey  || "";
+    const [name, tag]   = (cfg.riotId || "").split("#");
+    $("riotName").value = name || "";
+    $("riotTag").value  = tag  || "";
+
+    const lastMatch = await window.ra.getLastMatch();
+    if (lastMatch) renderMatch(lastMatch);
+  });
+
+  // ── IPC listeners ───────────────────────────────────────────────────────────
+  window.ra.onStatus(({ key, val }) => {
+    if (key === "watching") {
+      $("watchDot").className  = "status-dot" + (val ? " active" : "");
+      $("watchText").textContent = val ? "Watching for matches…" : "Stopped";
+    }
+  });
+
+  window.ra.onLog(({ msg, ts }) => {
+    const box   = $("logBox");
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+    box.appendChild(entry);
+    box.scrollTop = box.scrollHeight;
+  });
+
+  window.ra.onLastMatch(scrim => renderMatch(scrim));
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+  async function saveConfig() {
+    const riotId = [$("riotName").value.trim(), $("riotTag").value.trim()].filter(Boolean).join("#");
+    await window.ra.saveConfig({
+      apiUrl:  $("apiUrl").value.trim(),
+      apiKey:  $("apiKey").value.trim(),
+      riotId,
+    });
+    showBanner("ok", "✓ Connected — watching for matches");
+  }
+
+  async function testConnection() {
+    showBanner("", "Testing…");
+    const result = await window.ra.testConnection();
+    if (result.success) showBanner("ok", "✓ Server reachable");
+    else                showBanner("error", "✕ " + result.error);
+  }
+
+  function showBanner(type, msg) {
+    const b = $("connBanner");
+    b.textContent  = msg;
+    b.className    = "conn-banner" + (type ? " " + type : "");
+    if (type) b.style.display = "flex";
+  }
+
+  // ── Render last match ────────────────────────────────────────────────────────
+  function renderMatch(scrim) {
+    if (!scrim) return;
+    const isWin = scrim.res === "win" || scrim.res === "W";
+    const [os, ts] = (scrim.score || "0-0").split("-");
+    $("matchCard").innerHTML = `
+      <div class="map">${scrim.map || "Unknown"}</div>
+      <div class="meta">${scrim.date || ""} · vs ${scrim.opp || "Opponent"}</div>
+      <div class="score-row">
+        <span class="score ${isWin ? "win" : "loss"}">${os}–${ts}</span>
+        <span class="opp" style="color:${isWin ? "var(--green)" : "var(--red)"};font-weight:700">${isWin ? "WIN" : "LOSS"}</span>
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>
